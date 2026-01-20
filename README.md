@@ -10,8 +10,8 @@ A 2D top-down stealth web game built with **Phaser 3 + TypeScript + Vite**.
 ## Quick Start (All OS)
 ```bash
 # 1) Clone the repo
-git clone https://github.com/<YOUR_USERNAME>/<REPO_NAME>.git
-cd <REPO_NAME>
+git clone https://github.com/boxerarakelyan777/shadowsignal.git
+cd shadowsignal
 
 # 2) Checkout dev branch (active development)
 git checkout dev
