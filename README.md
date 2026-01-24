@@ -1,23 +1,94 @@
 # Shadow Signal (TCSS 491)
 
-A 2D top-down stealth web game built with **Phaser 3 + TypeScript + Vite**.
+**Shadow Signal** is a 2D **top-down stealth infiltration** web game built using the **TCSS 491 provided engine** (`algorithm0r/Empty--GameEngine`) — a bare-bones HTML5 Canvas game loop + input + asset manager.
 
-## Requirements
-- **Node.js LTS (v20.x recommended)**
-- **Git**
-- (Recommended) **VS Code**
+Repo: `boxerarakelyan777/shadowsignal`
+
+---
+
+## Tech Stack (Course Required)
+
+- **Language:** JavaScript (ES6)
+- **Engine:** `Empty--GameEngine` (Canvas + `GameEngine` + `AssetManager`)
+- **Hosting:** GitHub Pages (static deploy from branch)
+- **Local Dev:** any local static server (Python or VS Code Live Server)
+
+---
 
 ## Quick Start (All OS)
+
+### 1) Clone + checkout `dev`
 ```bash
-# 1) Clone the repo
 git clone https://github.com/boxerarakelyan777/shadowsignal.git
 cd shadowsignal
-
-# 2) Checkout dev branch (active development)
 git checkout dev
+```
 
-# 3) Install dependencies
-npm install
+### 2) Run a local server
 
-# 4) Run dev server
-npm run dev
+**Option A (Python — recommended):**
+```bash
+python3 -m http.server 8000
+```
+Open:
+- http://localhost:8000
+
+**Option B (VS Code Live Server):**
+- Install extension: **Live Server**
+- Right-click `index.html` → **Open with Live Server**
+---
+
+## Controls (Current Prototype)
+
+- **Move:** `WASD` or Arrow Keys  
+- **Interact / Hide toggle:** `E` (while standing on a hide spot)
+
+---
+
+## Project Structure
+
+```
+/
+  index.html
+  main.js
+  assetmanager.js
+  gameengine.js
+  timer.js
+  util.js
+  assets/
+    sprites/
+    audio/
+  src/
+    entities/
+      player.js
+      guard.js
+      level.js
+    systems/
+      collision.js
+      vision.js
+    levels/
+      testLevel.js
+```
+
+### Key Files
+- **`index.html`**: loads engine scripts and our game scripts (order matters)
+- **`main.js`**: game bootstrap (creates engine, loads level, adds entities)
+- **`src/levels/testLevel.js`**: rectangle-based test level layout (walls, exit, hide spots, guard waypoints)
+- **`src/systems/collision.js`**: AABB collision + movement resolution against wall rectangles
+- **`src/systems/vision.js`**: FOV + line-of-sight (segment vs wall-rect)
+- **`src/entities/*.js`**: Player / Guard / LevelRenderer
+
+
+
+
+## GitHub Pages Deployment (Static)
+
+This project is static HTML/JS (no build step). Pages should be configured as:
+
+**Repo → Settings → Pages**
+- **Source:** Deploy from a branch  
+- **Branch:** `main`  
+- **Folder:** `/ (root)`
+
+Live URL (expected):
+- https://boxerarakelyan777.github.io/shadowsignal/
