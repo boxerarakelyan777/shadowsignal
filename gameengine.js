@@ -19,6 +19,15 @@ class GameEngine {
         this.options = options || {
             debugging: false,
         };
+
+        this.camera = {
+            x: 0,
+            y: 0,
+            width: 1024,
+            height: 768,
+            zoom: 0.75 // zoom out (1 = normal  )
+        };
+
     };
 
     init(ctx) {
@@ -40,37 +49,47 @@ class GameEngine {
         const getXandY = e => ({
             x: e.clientX - this.ctx.canvas.getBoundingClientRect().left,
             y: e.clientY - this.ctx.canvas.getBoundingClientRect().top
-        });
+            }
+        );
         
-        this.ctx.canvas.addEventListener("mousemove", e => {
-            if (this.options.debugging) {
-                console.log("MOUSE_MOVE", getXandY(e));
+        this.ctx.canvas.addEventListener("mousemove", 
+            e => {
+                if (this.options.debugging) {
+                    console.log("MOUSE_MOVE", getXandY(e));
+                }
+                this.mouse = getXandY(e);
             }
-            this.mouse = getXandY(e);
-        });
+        );
 
-        this.ctx.canvas.addEventListener("click", e => {
-            if (this.options.debugging) {
-                console.log("CLICK", getXandY(e));
+        this.ctx.canvas.addEventListener("click", 
+            e => {
+                if (this.options.debugging) {
+                    console.log("CLICK", getXandY(e));
+                }
+                this.click = getXandY(e);
             }
-            this.click = getXandY(e);
-        });
+        );
 
-        this.ctx.canvas.addEventListener("wheel", e => {
-            if (this.options.debugging) {
-                console.log("WHEEL", getXandY(e), e.wheelDelta);
-            }
-            e.preventDefault(); // Prevent Scrolling
-            this.wheel = e;
-        });
+        this.ctx.canvas.addEventListener("wheel", 
+            e => {
+                if (this.options.debugging) {
+                    console.log("WHEEL", getXandY(e), e.wheelDelta);
+                }
+                e.preventDefault(); // Prevent Scrolling
+                this.wheel = e;
+            },
+            {passive: false}
+        );
 
-        this.ctx.canvas.addEventListener("contextmenu", e => {
-            if (this.options.debugging) {
-                console.log("RIGHT_CLICK", getXandY(e));
+        this.ctx.canvas.addEventListener("contextmenu", 
+            e => {
+                if (this.options.debugging) {
+                    console.log("RIGHT_CLICK", getXandY(e));
+                }
+                e.preventDefault(); // Prevent Context Menu
+                this.rightclick = getXandY(e);
             }
-            e.preventDefault(); // Prevent Context Menu
-            this.rightclick = getXandY(e);
-        });
+        );
 
         this.ctx.canvas.addEventListener("keydown", event => this.keys[event.key] = true);
         this.ctx.canvas.addEventListener("keyup", event => this.keys[event.key] = false);
@@ -81,13 +100,24 @@ class GameEngine {
     };
 
     draw() {
-        // Clear the whole canvas with transparent color (rgba(0, 0, 0, 0))
+        const ctx = this.ctx;
+        const cam = this.camera;
+
+        // fill the canvas 
+        // TODO: Need to make transparent to allow image backgrounds
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
 
-        // Draw latest things first
+        ctx.save();
+        ctx.scale(cam.zoom, cam.zoom);
+        ctx.translate(-cam.x, -cam.y);
+
+        // Draw latest things first 
         for (let i = this.entities.length - 1; i >= 0; i--) {
-            this.entities[i].draw(this.ctx, this);
+            this.entities[i].draw(ctx, this);
         }
+
+        ctx.restore();
     };
 
     update() {
@@ -99,6 +129,27 @@ class GameEngine {
             if (!entity.removeFromWorld) {
                 entity.update();
             }
+        }
+
+        const player = this.entities.find(e => e.isPlayer);
+
+        if(player && this.level) {
+            const viewWidth = this.camera.width / this.camera.zoom;
+            const viewHeight = this.camera.height / this.camera.zoom;
+
+            let targetX = player.x + player.w / 2 - viewWidth / 2;
+            let targetY = player.y + player.h / 2 - viewHeight / 2;
+            
+            this.camera.x = clamp(
+                targetX, 
+                0, 
+                Math.max(0, this.level.width - viewWidth)
+            );
+            this.camera.y = clamp(
+                targetY,
+                0,
+                Math.max(0, this.level.height - viewHeight)
+            );
         }
 
         for (let i = this.entities.length - 1; i >= 0; --i) {

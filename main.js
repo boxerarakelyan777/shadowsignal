@@ -13,7 +13,8 @@ ASSET_MANAGER.downloadAll(() => {
   // Make sure canvas receives keyboard events (GameEngine listens on canvas) :contentReference[oaicite:4]{index=4}
   canvas.focus();
 
-  const level = TEST_LEVEL;
+  const level = FIRST_LEVEL;
+  gameEngine.level = level; //to set camera
 
   const player = new Player(gameEngine, level, GAME_STATE);
   const guard = new Guard(gameEngine, level, GAME_STATE, player);
@@ -21,9 +22,11 @@ ASSET_MANAGER.downloadAll(() => {
 
   // IMPORTANT: This engine draws entities in reverse order (last added drawn first) :contentReference[oaicite:5]{index=5}
   // So add player/guard first, then level renderer last so it draws behind them.
-  gameEngine.addEntity(player);
-  gameEngine.addEntity(guard);
+  //TODO: Is this comment correct? this.entites goes from last element to first element
   gameEngine.addEntity(levelRenderer);
+  gameEngine.addEntity(guard);
+  gameEngine.addEntity(player);
+
 
   gameEngine.start();
 });

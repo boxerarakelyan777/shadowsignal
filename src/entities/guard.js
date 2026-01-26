@@ -11,7 +11,7 @@ class Guard {
     this.w = level.guard.w;
     this.h = level.guard.h;
 
-    this.speed = 140;
+    this.speed = 90;
     this.waypoints = level.guard.waypoints;
     this.wpIndex = 0;
 
@@ -119,10 +119,18 @@ class Guard {
   draw(ctx) {
     // Guard body
     ctx.fillStyle = "rgba(180,0,0,1)";
-    ctx.fillRect(this.x, this.y, this.w, this.h);
+    ctx.fillRect(
+      this.x, 
+      this.y, 
+      this.w, 
+      this.h
+    );
 
     // Vision cone
-    const g = centerOf(this);
+    const g = {
+      x: centerOf(this).x,
+      y: centerOf(this).y
+    };
     const left = this.facing - this.fov / 2;
     const right = this.facing + this.fov / 2;
 
