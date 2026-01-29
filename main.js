@@ -7,11 +7,39 @@ const STATE = { status: "playing", input: null };
 ASSET_MANAGER.downloadAll(() => {
   const canvas = document.getElementById("gameWorld");
   const ctx = canvas.getContext("2d");
+  const baseWidth = canvas.width;
+  const baseHeight = canvas.height;
+  const zoomFactor = 1.6;
 
+  const resizeCanvas = () => {
+    const dpr = window.devicePixelRatio || 1;
+    const displayWidth = Math.floor(window.innerWidth);
+    const displayHeight = Math.floor(window.innerHeight);
+
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    canvas.width = Math.floor(displayWidth * dpr);
+    canvas.height = Math.floor(displayHeight * dpr);
+
+    if (gameEngine.ctx) {
+      gameEngine.surfaceWidth = canvas.width;
+      gameEngine.surfaceHeight = canvas.height;
+      gameEngine.camera.width = canvas.width;
+      gameEngine.camera.height = canvas.height;
+      const scale = Math.min(canvas.width / baseWidth, canvas.height / baseHeight);
+      gameEngine.camera.zoom = scale * zoomFactor;
+      gameEngine.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+  };
+
+  window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("orientationchange", resizeCanvas);
   gameEngine.init(ctx);
+  resizeCanvas();
 
   // Make sure canvas receives keyboard events (GameEngine listens on canvas)
   canvas.focus();
+  canvas.addEventListener("pointerdown", () => canvas.focus());
 
   const level = FIRST_LEVEL;
   gameEngine.level = level; //to set camera

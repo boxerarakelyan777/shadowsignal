@@ -33,6 +33,10 @@ class GameEngine {
 
     init(ctx) {
         this.ctx = ctx;
+        this.surfaceWidth = ctx.canvas.width;
+        this.surfaceHeight = ctx.canvas.height;
+        this.camera.width = ctx.canvas.width;
+        this.camera.height = ctx.canvas.height;
         this.startInput();
         this.timer = new Timer();
     };
@@ -47,11 +51,15 @@ class GameEngine {
     };
 
     startInput() {
-        const getXandY = e => ({
-            x: e.clientX - this.ctx.canvas.getBoundingClientRect().left,
-            y: e.clientY - this.ctx.canvas.getBoundingClientRect().top
-            }
-        );
+        const getXandY = e => {
+            const rect = this.ctx.canvas.getBoundingClientRect();
+            const scaleX = this.ctx.canvas.width / rect.width;
+            const scaleY = this.ctx.canvas.height / rect.height;
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        };
         
         this.ctx.canvas.addEventListener("mousemove", 
             e => {
