@@ -50,23 +50,34 @@ class LevelRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     // UI text
-    //const d = this.state.debug || {};
     ctx.fillStyle = "white";
     ctx.font = "16px Arial";
-    ctx.fillText(
-      `WASD move | E hide on blue | Status: ${this.state.status}`, //`Camera: (${Math.floor(this.game.camera.x)}, ${Math.floor(this.game.camera.y)})`,
-      20,
-      24
-    );
+    ctx.fillText("WASD move | E interact", 20, 24);
+    ctx.fillText(`Status: ${this.state.status}`, 20, 44);
 
-    if (this.state.status === "won") {
+    const player = game.entities.find(e => e.isPlayer);
+    const interaction = player ? getInteraction(player, this.level, this.state) : null;
+    if (interaction) {
+      ctx.fillText(interaction.text, 20, 64);
+    }
+
+    if (this.state.status === "won" || this.state.status === "lost") {
+      const message = this.state.status === "won" ? "YOU WIN" : "CAUGHT";
+      const cw = game.surfaceWidth || ctx.canvas.width;
+      const ch = game.surfaceHeight || ctx.canvas.height;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(0, ch * 0.4 - 70, cw, 140);
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
       ctx.font = "48px Arial";
-      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-      ctx.fillText("YOU WIN", 380, 380);
-    } else if (this.state.status === "lost") {
-      ctx.font = "48px Arial";
-      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-      ctx.fillText("CAUGHT", 390, 380);
+      ctx.fillText(message, cw / 2, ch * 0.4);
+      ctx.font = "20px Arial";
+      ctx.fillText("Press R to restart", cw / 2, ch * 0.4 + 44);
+      ctx.textAlign = "start";
+      ctx.textBaseline = "alphabetic";
     }
 
     ctx.restore();
