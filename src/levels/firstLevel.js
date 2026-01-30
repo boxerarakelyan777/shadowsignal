@@ -6,9 +6,11 @@ const FIRST_LEVEL = {
   playerSpawn: { x: 80, y: 400 },
 
   exitZone: { x: 3000, y: 500, w: 150, h: 200 },
+
+  keycard: { x: 2100, y: 560, w: 26, h: 26 },
     
   hideSpots: [
-    { x: 1475, y: 450, w: 50, h: 50 },
+    { x: 80, y: 180, w: 50, h: 50 },
   ],
 
   // TODO: Add signage / text entity to all areas
@@ -24,6 +26,9 @@ const FIRST_LEVEL = {
     { x: 0, y: 1160, w: 3160, h: 40 }, //bottom
     { x: 0, y: 0, w: 40, h: 1160 }, //left
     { x: 3160, y: 0, w: 40, h: 1160 }, //right
+
+    // LOS blocker between player and guard
+    { x: 1200, y: 220, w: 60, h: 760 },
 
     // Row 0 (y = 440)   cols 2-13
     { x: 580, y: 340, w: 40, h: 40 },
@@ -175,14 +180,14 @@ const FIRST_LEVEL = {
   ],
 
   guard: {
-    x: 1600,
+    x: 1400,
     y: 600,
     w: 28,
     h: 28,
     // Waypoints in open space (won't hit walls)
     waypoints: [
-      { x: 1500, y: 400 },
-      { x: 1500, y: 800 }
+      { x: 1350, y: 420 },
+      { x: 1350, y: 780 }
     ],
   },
 };
