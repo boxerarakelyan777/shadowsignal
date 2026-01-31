@@ -2,7 +2,25 @@ const gameEngine = new GameEngine({ debugging: false });
 const ASSET_MANAGER = new AssetManager();
 
 // Simple game state shared by entities
-const STATE = { status: "playing", input: null };
+const STATE = {
+  status: "title",
+  hasKey: false,
+  hasKeycard: false,
+  objectiveComplete: false,
+  terminalComplete: false,
+  terminalState: "INACTIVE",
+  terminalProgress: 0,
+  playerState: "NORMAL",
+  activeHideSpot: null,
+  noise: null,
+  noiseEvents: [],
+  debug: false,
+  uiPrompt: "",
+  message: "",
+  messageTimer: 0,
+  input: null,
+  keycardSpawn: null,
+};
 
 ASSET_MANAGER.downloadAll(() => {
   const canvas = document.getElementById("gameWorld");
@@ -41,8 +59,9 @@ ASSET_MANAGER.downloadAll(() => {
   canvas.focus();
   canvas.addEventListener("pointerdown", () => canvas.focus());
 
-  const level = FIRST_LEVEL;
+  const level = PROTOTYPE_LEVEL;
   gameEngine.level = level; //to set camera
+  STATE.keycardSpawn = level.keycard ? { ...level.keycard } : null;
 
   STATE.input = new Input(gameEngine);
 
