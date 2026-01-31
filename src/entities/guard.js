@@ -10,10 +10,13 @@ class Guard {
     this.y = level.guard.y;
     this.w = level.guard.w;
     this.h = level.guard.h;
+    this.startX = this.x;
+    this.startY = this.y;
 
     this.speed = 90;
-    this.waypoints = level.guard.waypoints;
+    this.waypoints = level.guard.waypoints || [];
     this.wpIndex = 0;
+    this.startWpIndex = this.wpIndex;
 
     // Vision parameters (V1)
     this.visionRange = 320;
@@ -26,65 +29,74 @@ class Guard {
     this._lastY = this.y;
 
     this.removeFromWorld = false;
+    this.isGuard = true;
 
-    // Ensure debug object exists
-    if (!this.state.debug) this.state.debug = {};
+    if (!this.state.debugInfo) this.state.debugInfo = {};
   }
 
   update() {
     if (this.state.status !== "playing") return;
 
-    // Patrol toward current waypoint
-    const target = this.waypoints[this.wpIndex];
     const c = centerOf(this);
-    const dx = target.x - c.x;
-    const dy = target.y - c.y;
-    const dist = Math.hypot(dx, dy);
+    const noise = this.state.noise;
+    const target = noise ? { x: noise.x, y: noise.y } : this.waypoints[this.wpIndex];
+    if (target) {
+      const dx = target.x - c.x;
+      const dy = target.y - c.y;
+      const dist = Math.hypot(dx, dy);
 
-    if (dist < 8) {
-      this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
-    } else {
-      const dirX = dx / dist;
-      const dirY = dy / dist;
-      this.facing = Math.atan2(dirY, dirX);
+      if (!noise && dist < 8 && this.waypoints.length) {
+        this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
+      } else if (dist >= 1) {
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+        this.facing = Math.atan2(dirY, dirX);
 
-      const dt = this.game.clockTick;
-      const mx = dirX * this.speed * dt;
-      const my = dirY * this.speed * dt;
+        const dt = this.game.clockTick;
+        const mx = dirX * this.speed * dt;
+        const my = dirY * this.speed * dt;
 
-      const oldX = this.x;
-      const oldY = this.y;
+        const oldX = this.x;
+        const oldY = this.y;
 
-      moveWithWalls(this, mx, my, this.level.walls);
+        moveWithWalls(this, mx, my, this.level.walls);
 
-      // Unstuck: if we didn't move, skip to next waypoint after a short time
-      const moved = Math.hypot(this.x - oldX, this.y - oldY);
-      if (moved < 0.5) {
-        this._stuckTimer += dt;
-        if (this._stuckTimer > 0.35) {
-          this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
+        // Unstuck: if we didn't move, skip to next waypoint after a short time
+        const moved = Math.hypot(this.x - oldX, this.y - oldY);
+        if (!noise && moved < 0.5 && this.waypoints.length) {
+          this._stuckTimer += dt;
+          if (this._stuckTimer > 0.35) {
+            this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
+            this._stuckTimer = 0;
+          }
+        } else if (!noise) {
           this._stuckTimer = 0;
         }
-      } else {
-        this._stuckTimer = 0;
       }
     }
 
     // Detection check (ignore if player hidden)
-    const debug = this.state.debug;
-    debug.sees = false;
-    debug.inRange = false;
-    debug.inFov = false;
-    debug.hasLos = false;
+    const debugInfo = this.state.debugInfo || (this.state.debugInfo = {});
+    debugInfo.sees = false;
+    debugInfo.inRange = false;
+    debugInfo.inFov = false;
+    debugInfo.hasLos = false;
 
-    if (!this.player.hidden) {
+    if (!(this.player.hidden || this.state.playerState === "HIDDEN")) {
       const result = this.canSeePlayerDetailed();
-      debug.inRange = result.inRange;
-      debug.inFov = result.inFov;
-      debug.hasLos = result.hasLos;
-      debug.sees = result.sees;
+      debugInfo.inRange = result.inRange;
+      debugInfo.inFov = result.inFov;
+      debugInfo.hasLos = result.hasLos;
+      debugInfo.sees = result.sees;
 
       if (result.sees) {
+        this.state.playerState = "CAPTURED";
+        this.state.status = "lost";
+        return;
+      }
+
+      if (rectsIntersect(this, this.player)) {
+        this.state.playerState = "CAPTURED";
         this.state.status = "lost";
       }
     }
@@ -119,12 +131,7 @@ class Guard {
   draw(ctx) {
     // Guard body
     ctx.fillStyle = "rgba(180,0,0,1)";
-    ctx.fillRect(
-      this.x, 
-      this.y, 
-      this.w, 
-      this.h
-    );
+    ctx.fillRect(this.x, this.y, this.w, this.h);
 
     // Vision cone
     const g = {
@@ -146,7 +153,7 @@ class Guard {
     ctx.restore();
 
     // Debug LOS line if in range+fov (green = LOS, red = blocked)
-    if (!this.player.hidden) {
+    if (!(this.player.hidden || this.state.playerState === "HIDDEN")) {
       const res = this.canSeePlayerDetailed();
       if (res.inRange && res.inFov) {
         ctx.save();
@@ -159,5 +166,15 @@ class Guard {
         ctx.restore();
       }
     }
+  }
+
+  reset() {
+    this.x = this.startX;
+    this.y = this.startY;
+    this.wpIndex = this.startWpIndex;
+    this._stuckTimer = 0;
+    this._lastX = this.startX;
+    this._lastY = this.startY;
+    this.facing = 0;
   }
 }
