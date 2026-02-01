@@ -18,12 +18,12 @@ class Guard {
     this.wpIndex = 0;
     this.startWpIndex = this.wpIndex;
 
-    // Vision parameters (V1)
     this.visionRange = 320;
-    this.fov = (80 * Math.PI) / 180; // 80 degrees
+    this.fov = (80 * Math.PI) / 180;
     this.facing = 0;
 
-    // Debug
+    this.aiState = "PATROL";
+
     this._stuckTimer = 0;
     this._lastX = this.x;
     this._lastY = this.y;
@@ -37,16 +37,37 @@ class Guard {
   update() {
     if (this.state.status !== "playing") return;
 
+    // 🔴 IMPORTANT FIX: hiding immediately breaks chase
+    if (this.player.hidden || this.state.playerState === "HIDDEN") {
+      if (this.aiState === "CHASE") {
+        this.aiState = "RETURN";
+      }
+    }
+
     const c = centerOf(this);
     const noise = this.state.noise;
-    const target = noise ? { x: noise.x, y: noise.y } : this.waypoints[this.wpIndex];
+
+    let target = null;
+
+    if (this.aiState === "PATROL") {
+      target = noise
+        ? { x: noise.x, y: noise.y }
+        : this.waypoints[this.wpIndex];
+    } else if (this.aiState === "CHASE") {
+      target = centerOf(this.player);
+    } else if (this.aiState === "RETURN") {
+      target = this.waypoints[this.wpIndex];
+    }
+
     if (target) {
       const dx = target.x - c.x;
       const dy = target.y - c.y;
       const dist = Math.hypot(dx, dy);
 
-      if (!noise && dist < 8 && this.waypoints.length) {
+      if (this.aiState === "PATROL" && !noise && dist < 8 && this.waypoints.length) {
         this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
+      } else if (this.aiState === "RETURN" && dist < 8) {
+        this.aiState = "PATROL";
       } else if (dist >= 1) {
         const dirX = dx / dist;
         const dirY = dy / dist;
@@ -61,21 +82,19 @@ class Guard {
 
         moveWithWalls(this, mx, my, this.level.walls);
 
-        // Unstuck: if we didn't move, skip to next waypoint after a short time
         const moved = Math.hypot(this.x - oldX, this.y - oldY);
-        if (!noise && moved < 0.5 && this.waypoints.length) {
+        if (this.aiState === "PATROL" && !noise && moved < 0.5 && this.waypoints.length) {
           this._stuckTimer += dt;
           if (this._stuckTimer > 0.35) {
             this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
             this._stuckTimer = 0;
           }
-        } else if (!noise) {
+        } else if (this.aiState === "PATROL") {
           this._stuckTimer = 0;
         }
       }
     }
 
-    // Detection check (ignore if player hidden)
     const debugInfo = this.state.debugInfo || (this.state.debugInfo = {});
     debugInfo.sees = false;
     debugInfo.inRange = false;
@@ -90,14 +109,15 @@ class Guard {
       debugInfo.sees = result.sees;
 
       if (result.sees) {
+        this.aiState = "CHASE";
+      } else if (this.aiState === "CHASE") {
+        this.aiState = "RETURN";
+      }
+
+      if (this.aiState === "CHASE" && rectsIntersect(this, this.player)) {
         this.state.playerState = "CAPTURED";
         this.state.status = "lost";
         return;
-      }
-
-      if (rectsIntersect(this, this.player)) {
-        this.state.playerState = "CAPTURED";
-        this.state.status = "lost";
       }
     }
   }
@@ -129,15 +149,10 @@ class Guard {
   }
 
   draw(ctx) {
-    // Guard body
     ctx.fillStyle = "rgba(180,0,0,1)";
     ctx.fillRect(this.x, this.y, this.w, this.h);
 
-    // Vision cone
-    const g = {
-      x: centerOf(this).x,
-      y: centerOf(this).y
-    };
+    const g = centerOf(this);
     const left = this.facing - this.fov / 2;
     const right = this.facing + this.fov / 2;
 
@@ -152,7 +167,6 @@ class Guard {
     ctx.fill();
     ctx.restore();
 
-    // Debug LOS line if in range+fov (green = LOS, red = blocked)
     if (!(this.player.hidden || this.state.playerState === "HIDDEN")) {
       const res = this.canSeePlayerDetailed();
       if (res.inRange && res.inFov) {
@@ -176,5 +190,6 @@ class Guard {
     this._lastX = this.startX;
     this._lastY = this.startY;
     this.facing = 0;
+    this.aiState = "PATROL";
   }
 }
