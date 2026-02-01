@@ -5,13 +5,19 @@ class Player {
     this.level = level;
     this.state = state;
 
-    this.w = 26;
-    this.h = 26;
+    // Collision box slightly smaller than the visual size for fair corners.
+    this.w = 22;
+    this.h = 22;
+    this.drawW = 26;
+    this.drawH = 26;
+    this.drawOffsetX = (this.w - this.drawW) / 2;
+    this.drawOffsetY = (this.h - this.drawH) / 2;
     this.x = level.playerSpawn.x;
     this.y = level.playerSpawn.y;
 
     this.speed = 220; // pixels/sec
     this.hidden = false;
+    this.lastDir = { x: 1, y: 0 };
 
 
     this.removeFromWorld = false;
@@ -23,8 +29,13 @@ class Player {
     return { x: this.x, y: this.y, w: this.w, h: this.h };
   }
 
+  get bounds() {
+    return { x: this.x, y: this.y, w: this.w, h: this.h };
+  }
+
   update() {
     if (this.state.status !== "playing") return;
+    if (this.state.playerState !== "NORMAL") return;
 
     // If hidden, don't move (simple + clear)
     if (this.hidden) return;
@@ -41,6 +52,7 @@ class Player {
       const len = Math.hypot(vx, vy);
       vx /= len;
       vy /= len;
+      this.lastDir = { x: vx, y: vy };
     }
 
     const dt = this.game.clockTick;
@@ -56,10 +68,10 @@ class Player {
     ctx.globalAlpha = this.hidden ? 0.35 : 1.0;
     ctx.fillStyle = this.hidden ? "rgba(0,150,0,0.6)" : "rgba(0,180,0,1)";
     ctx.fillRect(
-      this.x, 
-      this.y, 
-      this.w, 
-      this.h
+      this.x + this.drawOffsetX,
+      this.y + this.drawOffsetY,
+      this.drawW,
+      this.drawH
     );
     ctx.restore();
   }
