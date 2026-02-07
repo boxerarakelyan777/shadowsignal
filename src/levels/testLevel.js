@@ -1,4 +1,18 @@
 // src/levels/testLevel.js
+const TEST_GUARD = {
+  x: 760,
+  y: 160,
+  w: 28,
+  h: 28,
+  // Waypoints in open space (won't hit walls)
+  waypoints: [
+    { x: 820, y: 160 },
+    { x: 820, y: 420 },
+    { x: 640, y: 420 },
+    { x: 640, y: 160 },
+  ],
+};
+
 const TEST_LEVEL = {
   width: 1024,
   height: 768,
@@ -23,17 +37,6 @@ const TEST_LEVEL = {
     { x: 480, y: 220, w: 25, h: 320 },
   ],
 
-  guard: {
-    x: 760,
-    y: 160,
-    w: 28,
-    h: 28,
-    // Waypoints in open space (won't hit walls)
-    waypoints: [
-      { x: 820, y: 160 },
-      { x: 820, y: 420 },
-      { x: 640, y: 420 },
-      { x: 640, y: 160 },
-    ],
-  },
+  guards: [TEST_GUARD],
+  guard: TEST_GUARD,
 };

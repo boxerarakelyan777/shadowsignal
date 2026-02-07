@@ -1,4 +1,16 @@
 // Tutorial Level src/levels/firstLevel.js
+const FIRST_LEVEL_GUARD = {
+  x: 1400,
+  y: 600,
+  w: 28,
+  h: 28,
+  // Waypoints in open space (won't hit walls)
+  waypoints: [
+    { x: 1350, y: 420 },
+    { x: 1350, y: 780 },
+  ],
+};
+
 const FIRST_LEVEL = {
   width: 3200,
   height: 1200,
@@ -179,15 +191,6 @@ const FIRST_LEVEL = {
     { x: 500, y: 940, w: 560, h: 220 },
   ],
 
-  guard: {
-    x: 1400,
-    y: 600,
-    w: 28,
-    h: 28,
-    // Waypoints in open space (won't hit walls)
-    waypoints: [
-      { x: 1350, y: 420 },
-      { x: 1350, y: 780 }
-    ],
-  },
+  guards: [FIRST_LEVEL_GUARD],
+  guard: FIRST_LEVEL_GUARD,
 };

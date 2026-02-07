@@ -15,6 +15,12 @@ class GameController {
     this.keycardSpawn = state.keycardSpawn
       ? { ...state.keycardSpawn }
       : (level.keycard ? { ...level.keycard } : null);
+
+    const rockDefaults = (typeof TUNING !== "undefined" && TUNING.rock) ? TUNING.rock : {};
+    this.maxThrowRange = this._num(rockDefaults.maxThrowRange, 250);
+    this.noiseRadius = this._num(rockDefaults.noiseRadius, 160);
+    this.noiseTTL = this._num(rockDefaults.noiseTTL, 1.0);
+    this.throwCooldownDuration = this._num(rockDefaults.cooldown, 0.5);
   }
 
   update() {
@@ -90,21 +96,20 @@ class GameController {
         const dy = worldY - py;
         const dist = Math.hypot(dx, dy);
         if (dist > 0) {
-          const maxRange = 250;
-          const t = dist > maxRange ? maxRange / dist : 1;
+          const t = dist > this.maxThrowRange ? this.maxThrowRange / dist : 1;
           const nx = px + dx * t;
           const ny = py + dy * t;
           const noiseEvent = {
             x: nx,
             y: ny,
-            radius: 160,
-            ttl: 1.0,
+            radius: this.noiseRadius,
+            ttl: this.noiseTTL,
             createdAt: this.game.timer ? this.game.timer.gameTime : Date.now() / 1000,
           };
           if (!Array.isArray(this.state.noiseEvents)) this.state.noiseEvents = [];
           this.state.noiseEvents.push(noiseEvent);
           this.state.noise = noiseEvent;
-          this.throwCooldown = 0.5;
+          this.throwCooldown = this.throwCooldownDuration;
         }
       }
     }
@@ -215,6 +220,8 @@ class GameController {
     this.state.noise = null;
     this.state.noiseEvents = [];
     this.state.activeHideSpot = null;
+    this.state.lastCaptureByGuardId = null;
+    this.state.debugInfo = { guards: [] };
     this.game.click = null;
 
     this.holdTime = 0;
@@ -249,5 +256,10 @@ class GameController {
     for (const guard of guards) {
       if (typeof guard.reset === "function") guard.reset();
     }
+  }
+
+  _num(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
   }
 }

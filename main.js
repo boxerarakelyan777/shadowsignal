@@ -20,6 +20,8 @@ const STATE = {
   messageTimer: 0,
   input: null,
   keycardSpawn: null,
+  lastCaptureByGuardId: null,
+  debugInfo: { guards: [] },
 };
 
 ASSET_MANAGER.downloadAll(() => {
@@ -66,12 +68,17 @@ ASSET_MANAGER.downloadAll(() => {
   STATE.input = new Input(gameEngine);
 
   const player = new Player(gameEngine, level, STATE);
-  const guard = new Guard(gameEngine, level, STATE, player);
+  const guardConfigs = normalizeLevelGuards(level);
+  const guards = guardConfigs.map(
+    (guardConfig, index) => new Guard(gameEngine, level, STATE, player, guardConfig, index)
+  );
   const levelRenderer = new LevelRenderer(gameEngine, level, STATE);
   const controller = new GameController(gameEngine, STATE, level, player);
 
   gameEngine.addEntity(controller);
-  gameEngine.addEntity(guard);
+  for (const guard of guards) {
+    gameEngine.addEntity(guard);
+  }
   gameEngine.addEntity(player);
   // IMPORTANT: This engine draws entities in reverse order (last added drawn first).
   // Add level renderer last so it draws behind everything else.
@@ -80,3 +87,19 @@ ASSET_MANAGER.downloadAll(() => {
 
   gameEngine.start();
 });
+
+function normalizeLevelGuards(level) {
+  if (!level) return [];
+
+  let guards = [];
+  if (Array.isArray(level.guards) && level.guards.length) {
+    guards = level.guards;
+  } else if (level.guard) {
+    guards = [level.guard];
+  }
+
+  // Keep both fields in sync while the codebase migrates from guard -> guards.
+  level.guards = guards;
+  level.guard = guards[0] || null;
+  return guards;
+}

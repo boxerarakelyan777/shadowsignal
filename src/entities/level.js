@@ -140,6 +140,18 @@ class LevelRenderer {
       ctx.fillText(this.state.message, 20, 104);
     }
 
+    if (this.state.debug && this.state.debugInfo && Array.isArray(this.state.debugInfo.guards)) {
+      let y = 134;
+      for (const guardInfo of this.state.debugInfo.guards) {
+        if (!guardInfo) continue;
+        const label = guardInfo.name || `Guard ${guardInfo.id + 1}`;
+        const sees = guardInfo.sees ? "SEE" : "NO-SEE";
+        const los = guardInfo.hasLos ? "LOS" : "NO-LOS";
+        ctx.fillText(`${label}: ${guardInfo.aiState || "?"} | ${sees} | ${los}`, 20, y);
+        y += 20;
+      }
+    }
+
     if (this.state.status === "won" || this.state.status === "lost") {
       const message = this.state.status === "won" ? "Level Complete" : "Caught - Press R to Retry";
       ctx.textAlign = "center";
@@ -151,6 +163,10 @@ class LevelRenderer {
       ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
       ctx.font = "48px Arial";
       ctx.fillText(message, cw / 2, ch * 0.4);
+      if (this.state.status === "lost" && this.state.lastCaptureByGuardId !== null) {
+        ctx.font = "20px Arial";
+        ctx.fillText(`Detected by guard ${this.state.lastCaptureByGuardId + 1}`, cw / 2, ch * 0.4 + 44);
+      }
       if (this.state.status === "won") {
         ctx.font = "20px Arial";
         ctx.fillText("Press R to restart", cw / 2, ch * 0.4 + 44);

@@ -9,6 +9,17 @@ const PROTOTYPE_LOCKED_DOOR = {
   trigger: { x: 1240, y: 380, w: 60, h: 160 },
 };
 
+const PROTOTYPE_GUARD = {
+  x: 2000,
+  y: 440,
+  w: 28,
+  h: 28,
+  waypoints: [
+    { x: 1750, y: 440 },
+    { x: 2600, y: 440 },
+  ],
+};
+
 const PROTOTYPE_LEVEL = {
   width: 3000,
   height: 900,
@@ -68,14 +79,6 @@ const PROTOTYPE_LEVEL = {
     PROTOTYPE_LOCKED_DOOR,
   ],
 
-  guard: {
-    x: 2000,
-    y: 440,
-    w: 28,
-    h: 28,
-    waypoints: [
-      { x: 1750, y: 440 },
-      { x: 2600, y: 440 },
-    ],
-  },
+  guards: [PROTOTYPE_GUARD],
+  guard: PROTOTYPE_GUARD,
 };

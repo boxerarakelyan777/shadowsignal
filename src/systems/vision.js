@@ -6,55 +6,66 @@ function normalizeAngle(a) {
 }
 
 function pointInRect(p, r) {
-  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+  return p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h;
 }
 
-// Segment intersection helpers
-function orient(a, b, c) {
-  return (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+function losEpsilon() {
+  if (typeof TUNING !== "undefined" && TUNING.los) {
+    const value = Number(TUNING.los.epsilon);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return 1e-6;
 }
 
-function onSegment(a, b, c) {
-  return (
-    Math.min(a.x, c.x) <= b.x &&
-    b.x <= Math.max(a.x, c.x) &&
-    Math.min(a.y, c.y) <= b.y &&
-    b.y <= Math.max(a.y, c.y)
-  );
+function losInset() {
+  if (typeof TUNING !== "undefined" && TUNING.los) {
+    const value = Number(TUNING.los.edgeInset);
+    if (Number.isFinite(value) && value >= 0) return value;
+  }
+  return 0;
 }
 
-function segmentsIntersect(p1, q1, p2, q2) {
-  const o1 = orient(p1, q1, p2);
-  const o2 = orient(p1, q1, q2);
-  const o3 = orient(p2, q2, p1);
-  const o4 = orient(p2, q2, q1);
+function clipTest(p, q, interval) {
+  const eps = losEpsilon();
+  if (Math.abs(p) <= eps) return q >= -eps;
 
-  if (o1 * o2 < 0 && o3 * o4 < 0) return true;
+  const t = q / p;
+  if (p < 0) {
+    if (t > interval.t1) return false;
+    if (t > interval.t0) interval.t0 = t;
+  } else {
+    if (t < interval.t0) return false;
+    if (t < interval.t1) interval.t1 = t;
+  }
+  return true;
+}
 
-  // Collinear cases
-  if (o1 === 0 && onSegment(p1, p2, q1)) return true;
-  if (o2 === 0 && onSegment(p1, q2, q1)) return true;
-  if (o3 === 0 && onSegment(p2, p1, q2)) return true;
-  if (o4 === 0 && onSegment(p2, q1, q2)) return true;
+function segmentIntersectsAabb(a, b, minX, minY, maxX, maxY) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const interval = { t0: 0, t1: 1 };
 
-  return false;
+  if (!clipTest(-dx, a.x - minX, interval)) return false;
+  if (!clipTest(dx, maxX - a.x, interval)) return false;
+  if (!clipTest(-dy, a.y - minY, interval)) return false;
+  if (!clipTest(dy, maxY - a.y, interval)) return false;
+
+  return interval.t1 >= interval.t0 - losEpsilon();
 }
 
 function segmentIntersectsRect(a, b, r) {
-  // If either endpoint is inside, we consider it intersecting
-  if (pointInRect(a, r) || pointInRect(b, r)) return true;
+  const inset = losInset();
+  const minX = r.x + inset;
+  const minY = r.y + inset;
+  const maxX = r.x + r.w - inset;
+  const maxY = r.y + r.h - inset;
 
-  const tl = { x: r.x, y: r.y };
-  const tr = { x: r.x + r.w, y: r.y };
-  const bl = { x: r.x, y: r.y + r.h };
-  const br = { x: r.x + r.w, y: r.y + r.h };
+  if (maxX <= minX || maxY <= minY) return false;
 
-  return (
-    segmentsIntersect(a, b, tl, tr) ||
-    segmentsIntersect(a, b, tr, br) ||
-    segmentsIntersect(a, b, br, bl) ||
-    segmentsIntersect(a, b, bl, tl)
-  );
+  const insetRect = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  if (pointInRect(a, insetRect) || pointInRect(b, insetRect)) return true;
+
+  return segmentIntersectsAabb(a, b, minX, minY, maxX, maxY);
 }
 
 function hasLineOfSight(fromPt, toPt, walls) {
