@@ -1,6 +1,6 @@
 // src/entities/guard.js
 class Guard {
-  constructor(game, level, state, player) {
+  constructor(game, level, state, player, spritesheet) {
     this.game = game;
     this.level = level;
     this.state = state;
@@ -22,6 +22,8 @@ class Guard {
     this.fov = (80 * Math.PI) / 180;
     this.facing = 0;
 
+    this.currentDirection = 0; //<- animator
+
     this.aiState = "PATROL";
 
     this._stuckTimer = 0;
@@ -32,10 +34,23 @@ class Guard {
     this.isGuard = true;
 
     if (!this.state.debugInfo) this.state.debugInfo = {};
+
+    if(spritesheet) {
+      this.animator = new Animator(
+        spritesheet, 
+        64, 
+        64, 
+        0.12, 
+        8);
+    } else {
+      this.animator = null;
+    }
   }
 
   update() {
     if (this.state.status !== "playing") return;
+
+    let isMoving = false;
 
     // 🔴 IMPORTANT FIX: hiding immediately breaks chase
     if (this.player.hidden || this.state.playerState === "HIDDEN") {
@@ -72,17 +87,18 @@ class Guard {
         const dirX = dx / dist;
         const dirY = dy / dist;
         this.facing = Math.atan2(dirY, dirX);
+        this.currentDirection = getDirectionIndex(dirX, dirY); 
 
         const dt = this.game.clockTick;
         const mx = dirX * this.speed * dt;
         const my = dirY * this.speed * dt;
-
         const oldX = this.x;
         const oldY = this.y;
-
         moveWithWalls(this, mx, my, this.level.walls);
 
         const moved = Math.hypot(this.x - oldX, this.y - oldY);
+        isMoving = moved > 0.5;
+
         if (this.aiState === "PATROL" && !noise && moved < 0.5 && this.waypoints.length) {
           this._stuckTimer += dt;
           if (this._stuckTimer > 0.35) {
@@ -93,6 +109,10 @@ class Guard {
           this._stuckTimer = 0;
         }
       }
+    }
+
+    if(this.animator){
+      this.animator.update(this.game.clockTick, isMoving);
     }
 
     const debugInfo = this.state.debugInfo || (this.state.debugInfo = {});
@@ -149,8 +169,18 @@ class Guard {
   }
 
   draw(ctx) {
-    ctx.fillStyle = "rgba(180,0,0,1)";
-    ctx.fillRect(this.x, this.y, this.w, this.h);
+    if(this.animator) {
+      this.animator.draw(
+        ctx, 
+        this.x, 
+        this.y, 
+        48, 48, 
+        this.currentDirection
+      );
+    } else {
+      ctx.fillStyle = "rgba(180,0,0,1)";
+      ctx.fillRect(this.x, this.y, this.w, this.h);
+    }
 
     const g = centerOf(this);
     const left = this.facing - this.fov / 2;
@@ -190,6 +220,11 @@ class Guard {
     this._lastX = this.startX;
     this._lastY = this.startY;
     this.facing = 0;
+    this.currentDirection = 0;
     this.aiState = "PATROL";
+    if(this.animator) {
+      this.animator.currentFrame = 0;
+      this.animator.elapsedTime = 0;
+    }
   }
 }

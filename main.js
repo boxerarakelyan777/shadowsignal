@@ -22,6 +22,10 @@ const STATE = {
   keycardSpawn: null,
 };
 
+//downloading sprites
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_walk.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_walk.png");
+
 ASSET_MANAGER.downloadAll(() => {
   const canvas = document.getElementById("gameWorld");
   const ctx = canvas.getContext("2d");
@@ -65,8 +69,12 @@ ASSET_MANAGER.downloadAll(() => {
 
   STATE.input = new Input(gameEngine);
 
-  const player = new Player(gameEngine, level, STATE);
-  const guard = new Guard(gameEngine, level, STATE, player);
+  //loading sprites
+  const playerSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_walk.png");
+  const guardSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_walk.png");
+
+  const player = new Player(gameEngine, level, STATE, playerSprite);
+  const guard = new Guard(gameEngine, level, STATE, player, guardSprite);
   const levelRenderer = new LevelRenderer(gameEngine, level, STATE);
   const controller = new GameController(gameEngine, STATE, level, player);
 
