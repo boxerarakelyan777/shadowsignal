@@ -23,6 +23,11 @@ const STATE = {
 };
 
 ASSET_MANAGER.downloadAll(() => {
+  //Backround music setup
+  const music = new Audio("assets/audio/Backround_music.wav");
+  music.loop = true;
+  music.volume = 0.4;
+
   const canvas = document.getElementById("gameWorld");
   const ctx = canvas.getContext("2d");
   const baseWidth = canvas.width;
@@ -57,7 +62,13 @@ ASSET_MANAGER.downloadAll(() => {
 
   // Make sure canvas receives keyboard events (GameEngine listens on canvas)
   canvas.focus();
-  canvas.addEventListener("pointerdown", () => canvas.focus());
+//start music on first click
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+      music.play();
+    }
+}, { once: true });
+
 
   const level = PROTOTYPE_LEVEL;
   gameEngine.level = level; //to set camera
