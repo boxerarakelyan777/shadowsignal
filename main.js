@@ -1,9 +1,20 @@
 const gameEngine = new GameEngine({ debugging: false });
 const ASSET_MANAGER = new AssetManager();
+const LEVEL_CATALOG = [
+  { id: "prototype", name: "Prototype Facility", data: PROTOTYPE_LEVEL },
+  { id: "tutorial", name: "Tutorial Maze", data: FIRST_LEVEL },
+  { id: "test", name: "Test Sandbox", data: TEST_LEVEL },
+];
+const DEFAULT_LEVEL_INDEX = 0;
 
 // Simple game state shared by entities
 const STATE = {
-  status: "title",
+  status: "splash",
+  levelIndex: DEFAULT_LEVEL_INDEX,
+  selectedLevelIndex: DEFAULT_LEVEL_INDEX,
+  menuIndex: 0,
+  levelCount: LEVEL_CATALOG.length,
+  levelMeta: LEVEL_CATALOG.map(level => ({ id: level.id, name: level.name })),
   hasKey: false,
   hasKeycard: false,
   objectiveComplete: false,
@@ -22,6 +33,8 @@ const STATE = {
   keycardSpawn: null,
   lastCaptureByGuardId: null,
   debugInfo: { guards: [] },
+  menuOptionRects: [],
+  levelOptionRects: [],
 };
 
 ASSET_MANAGER.downloadAll(() => {
@@ -61,32 +74,69 @@ ASSET_MANAGER.downloadAll(() => {
   canvas.focus();
   canvas.addEventListener("pointerdown", () => canvas.focus());
 
-  const level = PROTOTYPE_LEVEL;
-  gameEngine.level = level; //to set camera
-  STATE.keycardSpawn = level.keycard ? { ...level.keycard } : null;
-
   STATE.input = new Input(gameEngine);
+  loadLevelSession(DEFAULT_LEVEL_INDEX, "splash");
+
+  gameEngine.start();
+});
+
+function loadLevelSession(levelIndex, initialStatus = "playing") {
+  const safeLevelIndex = clamp(levelIndex, 0, LEVEL_CATALOG.length - 1);
+  const levelEntry = LEVEL_CATALOG[safeLevelIndex];
+  const level = cloneLevel(levelEntry.data);
+  const guardConfigs = normalizeLevelGuards(level);
+
+  gameEngine.level = level;
+  STATE.levelIndex = safeLevelIndex;
+  STATE.selectedLevelIndex = safeLevelIndex;
+  STATE.levelCount = LEVEL_CATALOG.length;
+  STATE.keycardSpawn = level.keycard ? { ...level.keycard } : null;
+  STATE.lastCaptureByGuardId = null;
+  STATE.debugInfo = { guards: [] };
+  STATE.menuOptionRects = [];
+  STATE.levelOptionRects = [];
+  STATE.menuIndex = clamp(Number(STATE.menuIndex) || 0, 0, 1);
+  STATE.status = initialStatus;
+  STATE.playerState = "NORMAL";
+  STATE.hasKey = false;
+  STATE.hasKeycard = false;
+  STATE.objectiveComplete = false;
+  STATE.terminalComplete = false;
+  STATE.terminalState = "INACTIVE";
+  STATE.terminalProgress = 0;
+  STATE.activeHideSpot = null;
+  STATE.noise = null;
+  STATE.noiseEvents = [];
+  STATE.uiPrompt = "";
+  STATE.message = "";
+  STATE.messageTimer = 0;
+  gameEngine.click = null;
 
   const player = new Player(gameEngine, level, STATE);
-  const guardConfigs = normalizeLevelGuards(level);
   const guards = guardConfigs.map(
     (guardConfig, index) => new Guard(gameEngine, level, STATE, player, guardConfig, index)
   );
   const levelRenderer = new LevelRenderer(gameEngine, level, STATE);
-  const controller = new GameController(gameEngine, STATE, level, player);
+  const controller = new GameController(gameEngine, STATE, level, player, {
+    scheduleLevelLoad,
+    levelCatalog: LEVEL_CATALOG,
+  });
 
-  gameEngine.addEntity(controller);
-  for (const guard of guards) {
-    gameEngine.addEntity(guard);
-  }
-  gameEngine.addEntity(player);
-  // IMPORTANT: This engine draws entities in reverse order (last added drawn first).
-  // Add level renderer last so it draws behind everything else.
-  gameEngine.addEntity(levelRenderer);
+  gameEngine.entities = [
+    controller,
+    ...guards,
+    player,
+    // IMPORTANT: This engine draws entities in reverse order (last added drawn first).
+    // Keep level renderer last so it draws behind everything else.
+    levelRenderer,
+  ];
+}
 
-
-  gameEngine.start();
-});
+function scheduleLevelLoad(levelIndex, initialStatus = "playing") {
+  window.setTimeout(() => {
+    loadLevelSession(levelIndex, initialStatus);
+  }, 0);
+}
 
 function normalizeLevelGuards(level) {
   if (!level) return [];
@@ -102,4 +152,8 @@ function normalizeLevelGuards(level) {
   level.guards = guards;
   level.guard = guards[0] || null;
   return guards;
+}
+
+function cloneLevel(level) {
+  return JSON.parse(JSON.stringify(level));
 }

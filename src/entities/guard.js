@@ -69,6 +69,9 @@ class Guard {
     this.facing = 0;
 
     this.aiState = "PATROL";
+    this.investigateTarget = null;
+    this.investigatePauseTimer = 0;
+    this.investigatePauseDuration = numberOr(fallbackConfig.investigatePauseDuration, 0.6);
 
     this._stuckTimer = 0;
     this._lastX = this.x;
@@ -84,6 +87,7 @@ class Guard {
   update() {
     if (this.state.status !== "playing") return;
     this.speed = this._speedForState();
+    const dt = this.game.clockTick;
 
     if (this.player.hidden || this.state.playerState === "HIDDEN") {
       if (this.aiState === "CHASE") {
@@ -92,14 +96,22 @@ class Guard {
     }
 
     const c = centerOf(this);
-    const noise = this._getHeardNoise(c);
+    const heardNoise = this._getHeardNoise(c);
+
+    if (heardNoise && this.aiState !== "CHASE") {
+      this.aiState = "INVESTIGATE";
+      this.investigateTarget = { x: heardNoise.x, y: heardNoise.y };
+      this.investigatePauseTimer = 0;
+    }
 
     let target = null;
 
     if (this.aiState === "PATROL") {
-      target = noise
-        ? { x: noise.x, y: noise.y }
-        : this.waypoints[this.wpIndex];
+      target = this.waypoints[this.wpIndex];
+    } else if (this.aiState === "INVESTIGATE") {
+      if (this.investigatePauseTimer <= 0 && this.investigateTarget) {
+        target = this.investigateTarget;
+      }
     } else if (this.aiState === "CHASE") {
       target = centerOf(this.player);
     } else if (this.aiState === "RETURN") {
@@ -113,11 +125,16 @@ class Guard {
 
       if (
         this.aiState === "PATROL" &&
-        !noise &&
         dist < this.waypointReachDistance &&
         this.waypoints.length
       ) {
         this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
+      } else if (
+        this.aiState === "INVESTIGATE" &&
+        dist < this.waypointReachDistance &&
+        this.investigatePauseTimer <= 0
+      ) {
+        this.investigatePauseTimer = this.investigatePauseDuration;
       } else if (this.aiState === "RETURN" && dist < this.waypointReachDistance) {
         this.aiState = "PATROL";
       } else if (dist >= 1) {
@@ -125,7 +142,6 @@ class Guard {
         const dirY = dy / dist;
         this.facing = Math.atan2(dirY, dirX);
 
-        const dt = this.game.clockTick;
         const mx = dirX * this.speed * dt;
         const my = dirY * this.speed * dt;
 
@@ -137,7 +153,6 @@ class Guard {
         const moved = Math.hypot(this.x - oldX, this.y - oldY);
         if (
           this.aiState === "PATROL" &&
-          !noise &&
           moved < this.stuckMoveThreshold &&
           this.waypoints.length
         ) {
@@ -152,11 +167,20 @@ class Guard {
       }
     }
 
+    if (this.aiState === "INVESTIGATE" && this.investigatePauseTimer > 0) {
+      this.investigatePauseTimer -= dt;
+      if (this.investigatePauseTimer <= 0) {
+        this.investigatePauseTimer = 0;
+        this.investigateTarget = null;
+        this.aiState = "RETURN";
+      }
+    }
+
     const debugInfo = this._getDebugSlot();
     debugInfo.id = this.guardId;
     debugInfo.name = this.name;
     debugInfo.aiState = this.aiState;
-    debugInfo.hearsNoise = !!noise;
+    debugInfo.hearsNoise = !!heardNoise;
     debugInfo.sees = false;
     debugInfo.inRange = false;
     debugInfo.inFov = false;
@@ -254,6 +278,8 @@ class Guard {
     this.facing = 0;
     this.aiState = "PATROL";
     this.speed = this.patrolSpeed;
+    this.investigateTarget = null;
+    this.investigatePauseTimer = 0;
   }
 
   _getHeardNoise(guardCenter) {
@@ -270,17 +296,20 @@ class Guard {
   _speedForState() {
     if (this.aiState === "CHASE") return this.chaseSpeed;
     if (this.aiState === "RETURN") return this.returnSpeed;
+    if (this.aiState === "INVESTIGATE") return this.patrolSpeed;
     return this.patrolSpeed;
   }
 
   _bodyColor() {
     if (this.aiState === "CHASE") return "rgba(220,40,40,1)";
+    if (this.aiState === "INVESTIGATE") return "rgba(210,110,20,1)";
     if (this.aiState === "RETURN") return "rgba(210,130,30,1)";
     return "rgba(180,0,0,1)";
   }
 
   _coneColor() {
     if (this.aiState === "CHASE") return "rgba(255,80,60,1)";
+    if (this.aiState === "INVESTIGATE") return "rgba(255,150,50,1)";
     if (this.aiState === "RETURN") return "rgba(255,170,40,1)";
     return "rgba(255,200,0,1)";
   }

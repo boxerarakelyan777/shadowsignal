@@ -28,6 +28,7 @@ class GameEngine {
             height: 768,
             zoom: 0.75 // zoom out (1 = normal  )
         };
+        this.pendingSceneAction = null;
 
     };
 
@@ -130,6 +131,12 @@ class GameEngine {
     };
 
     update() {
+        if (typeof this.pendingSceneAction === "function") {
+            const action = this.pendingSceneAction;
+            this.pendingSceneAction = null;
+            action();
+        }
+
         let entitiesCount = this.entities.length;
 
         for (let i = 0; i < entitiesCount; i++) {

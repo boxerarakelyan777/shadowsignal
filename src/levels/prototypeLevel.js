@@ -2,11 +2,11 @@
 const PROTOTYPE_LOCKED_DOOR = {
   x: 1300,
   y: 380,
-  w: 20,
+  w: 30,
   h: 160,
   locked: true,
   state: "LOCKED",
-  trigger: { x: 1240, y: 380, w: 60, h: 160 },
+  trigger: { x: 1240, y: 380, w: 90, h: 160 },
 };
 
 const PROTOTYPE_GUARD = {
@@ -58,8 +58,11 @@ const PROTOTYPE_LEVEL = {
     { x: 640, y: 540, w: 660, h: 20 },
 
     // Corridor walls (after door to objective room)
-    { x: 1320, y: 360, w: 80, h: 20 },
-    { x: 1320, y: 540, w: 80, h: 20 },
+    { x: 1330, y: 360, w: 70, h: 20 },
+    { x: 1330, y: 540, w: 70, h: 20 },
+    // Door frame caps (prevent top/bottom crevice clipping)
+    { x: 1300, y: 360, w: 30, h: 20 },
+    { x: 1300, y: 540, w: 30, h: 20 },
 
     // Key room
     { x: 1000, y: 120, w: 300, h: 20 },

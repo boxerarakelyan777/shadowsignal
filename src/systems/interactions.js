@@ -206,7 +206,7 @@ function performInteraction(interaction, player, level, state) {
       level.lockedDoor.locked = false;
       level.lockedDoor.state = "OPEN";
       if (Array.isArray(level.walls)) {
-        level.walls = level.walls.filter(w => w !== level.lockedDoor);
+        level.walls = level.walls.filter(w => !rectMatches(w, level.lockedDoor));
       }
     }
     return;
@@ -234,4 +234,8 @@ function performInteraction(interaction, player, level, state) {
       state.status = "won";
     }
   }
+}
+
+function rectMatches(a, b) {
+  return !!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
