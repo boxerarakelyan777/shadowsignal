@@ -38,8 +38,9 @@ const STATE = {
 };
 
 ASSET_MANAGER.downloadAll(() => {
-  //Backround music setup
+  // Backround music setup
   const music = new Audio("assets/audio/Backround_music.wav");
+  music.preload = "auto";
   music.loop = true;
   music.volume = 0.4;
 
@@ -77,12 +78,38 @@ ASSET_MANAGER.downloadAll(() => {
 
   // Make sure canvas receives keyboard events (GameEngine listens on canvas)
   canvas.focus();
-//start music on first click
-  window.addEventListener("keydown", (e) => {
-    if (e.code === "Space") {
-      music.play();
+
+  // Start music on the first user gesture that successfully resolves play().
+  let musicStarted = false;
+  const tryStartMusic = () => {
+    if (musicStarted) return;
+    const playResult = music.play();
+    if (playResult && typeof playResult.then === "function") {
+      playResult
+        .then(() => {
+          musicStarted = true;
+          detachAudioStartListeners();
+        })
+        .catch(() => {
+          // Keep listeners active so the next user gesture can try again.
+        });
+      return;
     }
-}, { once: true });
+
+    musicStarted = true;
+    detachAudioStartListeners();
+  };
+
+  const audioStartEvents = ["keydown", "pointerdown", "mousedown", "touchstart"];
+  const detachAudioStartListeners = () => {
+    for (const eventName of audioStartEvents) {
+      window.removeEventListener(eventName, tryStartMusic);
+    }
+  };
+
+  for (const eventName of audioStartEvents) {
+    window.addEventListener(eventName, tryStartMusic);
+  }
 
 
   STATE.input = new Input(gameEngine);
