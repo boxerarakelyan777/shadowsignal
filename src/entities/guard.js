@@ -1,6 +1,6 @@
 // src/entities/guard.js
 class Guard {
-  constructor(game, level, state, player, guardConfig = null, guardId = 0) {
+  constructor(game, level, state, player, guardConfig = null, guardId = 0, spritesheet = null) {
     this.game = game;
     this.level = level;
     this.state = state;
@@ -67,6 +67,7 @@ class Guard {
       numberOr(guardDefaults.stuckAdvanceDelay, 0.35)
     );
     this.facing = 0;
+    this.currentDirection = 0;
 
     this.aiState = "PATROL";
     this.investigateTarget = null;
@@ -82,12 +83,25 @@ class Guard {
 
     if (!this.state.debugInfo) this.state.debugInfo = {};
     if (!Array.isArray(this.state.debugInfo.guards)) this.state.debugInfo.guards = [];
+
+    if (spritesheet) {
+      this.animator = new Animator(
+        spritesheet,
+        64,
+        64,
+        0.12,
+        8
+      );
+    } else {
+      this.animator = null;
+    }
   }
 
   update() {
     if (this.state.status !== "playing") return;
     this.speed = this._speedForState();
     const dt = this.game.clockTick;
+    let isMoving = false;
 
     if (this.player.hidden || this.state.playerState === "HIDDEN") {
       if (this.aiState === "CHASE") {
@@ -141,16 +155,17 @@ class Guard {
         const dirX = dx / dist;
         const dirY = dy / dist;
         this.facing = Math.atan2(dirY, dirX);
+        this.currentDirection = getDirectionIndex(dirX, dirY);
 
         const mx = dirX * this.speed * dt;
         const my = dirY * this.speed * dt;
-
         const oldX = this.x;
         const oldY = this.y;
-
         moveWithWalls(this, mx, my, this.level.walls);
 
         const moved = Math.hypot(this.x - oldX, this.y - oldY);
+        isMoving = moved > this.stuckMoveThreshold;
+
         if (
           this.aiState === "PATROL" &&
           moved < this.stuckMoveThreshold &&
@@ -174,6 +189,10 @@ class Guard {
         this.investigateTarget = null;
         this.aiState = "RETURN";
       }
+    }
+
+    if (this.animator) {
+      this.animator.update(dt, isMoving);
     }
 
     const debugInfo = this._getDebugSlot();
@@ -235,8 +254,19 @@ class Guard {
   }
 
   draw(ctx) {
-    ctx.fillStyle = this._bodyColor();
-    ctx.fillRect(this.x, this.y, this.w, this.h);
+    if (this.animator) {
+      this.animator.draw(
+        ctx,
+        this.x,
+        this.y,
+        48,
+        48,
+        this.currentDirection
+      );
+    } else {
+      ctx.fillStyle = this._bodyColor();
+      ctx.fillRect(this.x, this.y, this.w, this.h);
+    }
 
     const g = centerOf(this);
     const left = this.facing - this.fov / 2;
@@ -276,10 +306,15 @@ class Guard {
     this._lastX = this.startX;
     this._lastY = this.startY;
     this.facing = 0;
+    this.currentDirection = 0;
     this.aiState = "PATROL";
     this.speed = this.patrolSpeed;
     this.investigateTarget = null;
     this.investigatePauseTimer = 0;
+    if (this.animator) {
+      this.animator.currentFrame = 0;
+      this.animator.elapsedTime = 0;
+    }
   }
 
   _getHeardNoise(guardCenter) {

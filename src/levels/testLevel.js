@@ -17,7 +17,7 @@ const TEST_LEVEL = {
   width: 1024,
   height: 768,
 
-  playerSpawn: { x: 120, y: 120 },
+  playerSpawn: { x: 240, y: 240 },
 
   exitZone: { x: 930, y: 700, w: 70, h: 50 },
 
@@ -28,7 +28,7 @@ const TEST_LEVEL = {
 
   // Keep only borders for now (so patrol can't get blocked)
   walls: [
-    { x: 0, y: 0, w: 1024, h: 20 },
+    { x: 0, y: 120, w: 1024, h: 20 },
     { x: 0, y: 748, w: 1024, h: 20 },
     { x: 0, y: 0, w: 20, h: 768 },
     { x: 1004, y: 0, w: 20, h: 768 },
