@@ -15,6 +15,18 @@ Repo: `boxerarakelyan777/shadowsignal`
 
 ---
 
+## Final Art Requirement (Must-Have)
+
+Final release target: the game must be fully sprite-based.
+
+- [ ] Floor and wall rendering uses sprite/tile assets (no plain color block world in final).
+- [ ] Player and guard visuals use sprite sheets/animations in all gameplay states.
+- [ ] Interactables (door, keycard, terminal, hide spots, exit) use sprites.
+- [ ] UI screens (splash/menu/level select/credits/pause/win/loss) use final art assets.
+- [ ] Rectangle/debug rendering remains only as development fallback, not final presentation.
+
+---
+
 ## Quick Start (All OS)
 
 ### 1) Clone + checkout `dev`

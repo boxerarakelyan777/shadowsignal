@@ -64,6 +64,9 @@ class Player {
   }
 
   draw(ctx) {
+    const nonGameplayScreens = ["splash", "menu", "level_select", "credits", "loading"];
+    if (nonGameplayScreens.includes(this.state.status)) return;
+
     ctx.save();
     ctx.globalAlpha = this.hidden ? 0.35 : 1.0;
     ctx.fillStyle = this.hidden ? "rgba(0,150,0,0.6)" : "rgba(0,180,0,1)";

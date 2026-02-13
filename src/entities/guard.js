@@ -235,6 +235,9 @@ class Guard {
   }
 
   draw(ctx) {
+    const nonGameplayScreens = ["splash", "menu", "level_select", "credits", "loading"];
+    if (nonGameplayScreens.includes(this.state.status)) return;
+
     ctx.fillStyle = this._bodyColor();
     ctx.fillRect(this.x, this.y, this.w, this.h);
 

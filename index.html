@@ -1,13 +1,13 @@
-﻿
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, viewport-fit=cover">
     <title>Shadow Signal</title>
-  
+
     <script type="text/javascript" src="./assetmanager.js"></script>
     <script type="text/javascript" src="./timer.js"></script>
+    <script type="text/javascript" src="./animator.js"></script>
     <script src="./src/systems/input.js"></script>
     <script type="text/javascript" src="./gameengine.js"></script>
     <script type="text/javascript" src="./util.js"></script>
@@ -28,30 +28,58 @@
     <script type="text/javascript" src="./main.js"></script>
 
     <style>
+        :root {
+            --bg-top: #10263a;
+            --bg-bottom: #223746;
+            --frame-outer: #7cb8da;
+            --frame-inner: #d9efff;
+            --frame-glow: rgba(106, 198, 245, 0.34);
+            --canvas-base: #0f1a27;
+        }
+
         html,
         body {
             margin: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #0f0f0f;
+            background: radial-gradient(circle at 18% 14%, #355974 0%, var(--bg-top) 40%, var(--bg-bottom) 100%);
         }
+
         body {
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: clamp(8px, 1.5vw, 18px);
+            box-sizing: border-box;
+            font-family: "Rajdhani", "Trebuchet MS", sans-serif;
         }
+
         canvas {
-            /*background-image: url('./assets/sprites/floors/whitewood_floor.png');*/
-            background-size: cover;
-            background-color: #111;
+            background-color: var(--canvas-base);
             box-sizing: border-box;
             display: block;
-            width: 100vw;
-            height: 100vh;
-            image-rendering: pixelated; /* retro styling */
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
             touch-action: none;
             outline: none;
+            border-radius: 12px;
+            border: 2px solid var(--frame-outer);
+            box-shadow:
+                0 0 0 1px var(--frame-inner) inset,
+                0 18px 40px rgba(7, 15, 24, 0.45),
+                0 0 38px var(--frame-glow);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 6px;
+            }
+
+            canvas {
+                border-radius: 8px;
+            }
         }
     </style>
 </head>
