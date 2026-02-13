@@ -12,9 +12,12 @@ const TUNING = {
   },
   rock: {
     maxThrowRange: 250,
-    noiseRadius: 220,
-    noiseTTL: 1.25,
-    cooldown: 0.5,
+    throwSpeed: 760,
+    arcHeight: 18,
+    noiseRadius: 120,
+    impactVisualRadius: 14,
+    noiseTTL: 0.7,
+    cooldown: 0.45,
   },
   los: {
     epsilon: 1e-6,

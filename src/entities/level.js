@@ -3,8 +3,12 @@
 // Optional art slots.
 // Drop files into these paths to override gradient-only backgrounds.
 const UI_ART_PATHS = Object.freeze({
-  splash: "./assets/ui/splash-background.jpg",
-  menu: "./assets/ui/menu-background.jpg",
+  splash: (typeof UI_ASSETS !== "undefined" && UI_ASSETS.splashBackground)
+    ? UI_ASSETS.splashBackground
+    : "./assets/ui/splash-background.jpg",
+  menu: (typeof UI_ASSETS !== "undefined" && UI_ASSETS.menuBackground)
+    ? UI_ASSETS.menuBackground
+    : "./assets/ui/menu-background.jpg",
 });
 
 const UI_FONTS = Object.freeze({
@@ -23,6 +27,7 @@ class LevelRenderer {
     this.removeFromWorld = false;
     this.uiTime = 0;
     this.uiArt = this._loadUiArt(UI_ART_PATHS);
+    this.componentArt = this._loadUiArt(this._getComponentSpritePathMap());
   }
 
   update() {
@@ -34,6 +39,7 @@ class LevelRenderer {
 
   draw(ctx, game) {
     this._drawWorld(ctx);
+    this._drawRockProjectiles(ctx);
     this._drawNoisePulse(ctx);
 
     const cw = game.surfaceWidth || ctx.canvas.width;
@@ -115,108 +121,62 @@ class LevelRenderer {
   _drawWorld(ctx) {
     const levelWidth = Math.max(1, this.level.width || 1);
     const levelHeight = Math.max(1, this.level.height || 1);
+    const floorVariant = this.level.floorVariant || "default";
+    const floorVisual = this._getComponentVisual("floor", floorVariant);
 
-    const floorGradient = ctx.createLinearGradient(0, 0, levelWidth, levelHeight);
-    floorGradient.addColorStop(0, "#111b27");
-    floorGradient.addColorStop(0.55, "#0d1620");
-    floorGradient.addColorStop(1, "#0b121b");
-    ctx.fillStyle = floorGradient;
-    ctx.fillRect(0, 0, levelWidth, levelHeight);
+    this._drawRectComponent(
+      ctx,
+      { x: 0, y: 0, w: levelWidth, h: levelHeight },
+      "floor",
+      floorVariant,
+      { skipBorder: true }
+    );
+    this._drawWorldGrid(ctx, levelWidth, levelHeight, floorVisual);
 
-    this._drawWorldGrid(ctx, levelWidth, levelHeight);
-
-    for (const w of this.level.walls) {
-      const wallGradient = ctx.createLinearGradient(w.x, w.y, w.x, w.y + w.h);
-      wallGradient.addColorStop(0, "#3f4a57");
-      wallGradient.addColorStop(1, "#28323f");
-      ctx.fillStyle = wallGradient;
-      ctx.fillRect(w.x, w.y, w.w, w.h);
-
-      ctx.strokeStyle = "rgba(190, 225, 255, 0.12)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(w.x + 0.5, w.y + 0.5, Math.max(0, w.w - 1), Math.max(0, w.h - 1));
+    for (const w of this.level.walls || []) {
+      if (!w) continue;
+      const componentType = w.componentType || "wall";
+      if (componentType !== "wall") continue;
+      this._drawRectComponent(ctx, w, "wall", w.variant || "default");
     }
 
     if (this.level.lockedDoor) {
       const d = this.level.lockedDoor;
-      const doorGradient = ctx.createLinearGradient(d.x, d.y, d.x, d.y + d.h);
-      if (d.locked) {
-        doorGradient.addColorStop(0, "#b36a3a");
-        doorGradient.addColorStop(1, "#7e3f1f");
-      } else {
-        doorGradient.addColorStop(0, "rgba(134, 222, 164, 0.9)");
-        doorGradient.addColorStop(1, "rgba(55, 153, 96, 0.62)");
-      }
-      ctx.fillStyle = doorGradient;
-      ctx.fillRect(d.x, d.y, d.w, d.h);
-
-      ctx.strokeStyle = d.locked ? "rgba(255, 219, 179, 0.45)" : "rgba(176, 255, 211, 0.5)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(d.x + 1, d.y + 1, Math.max(0, d.w - 2), Math.max(0, d.h - 2));
+      const doorVariant = (d.locked === false || d.state === "OPEN") ? "open" : "locked";
+      this._drawRectComponent(ctx, d, "lockedDoor", doorVariant);
     }
 
-    for (const h of this.level.hideSpots) {
-      const hideGradient = ctx.createLinearGradient(h.x, h.y, h.x + h.w, h.y + h.h);
-      if (h.occupied) {
-        hideGradient.addColorStop(0, "rgba(58, 149, 219, 0.88)");
-        hideGradient.addColorStop(1, "rgba(36, 82, 163, 0.75)");
-      } else {
-        hideGradient.addColorStop(0, "rgba(57, 97, 167, 0.88)");
-        hideGradient.addColorStop(1, "rgba(25, 54, 123, 0.78)");
-      }
-      ctx.fillStyle = hideGradient;
-      ctx.fillRect(h.x, h.y, h.w, h.h);
-
-      ctx.strokeStyle = "rgba(188, 232, 255, 0.4)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(h.x + 0.75, h.y + 0.75, Math.max(0, h.w - 1.5), Math.max(0, h.h - 1.5));
+    for (const h of this.level.hideSpots || []) {
+      if (!h) continue;
+      const hideVariant = h.occupied ? "occupied" : (h.variant || "default");
+      this._drawRectComponent(ctx, h, "hideSpot", hideVariant);
     }
 
     if (this.level.terminal) {
-      const t = this.level.terminal;
-      const terminalGradient = ctx.createLinearGradient(t.x, t.y, t.x + t.w, t.y + t.h);
-      if (this.state.objectiveComplete) {
-        terminalGradient.addColorStop(0, "#7ff3bf");
-        terminalGradient.addColorStop(1, "#2f8e62");
-      } else {
-        terminalGradient.addColorStop(0, "#ffd182");
-        terminalGradient.addColorStop(1, "#bd7a2d");
-      }
-      ctx.fillStyle = terminalGradient;
-      ctx.fillRect(t.x, t.y, t.w, t.h);
-
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(t.x + 0.75, t.y + 0.75, Math.max(0, t.w - 1.5), Math.max(0, t.h - 1.5));
+      const terminalVariant = this.state.objectiveComplete ? "complete" : "default";
+      this._drawRectComponent(ctx, this.level.terminal, "terminal", terminalVariant);
     }
 
     if (this.level.keycard) {
-      const k = this.level.keycard;
       const shimmer = 0.7 + 0.3 * Math.sin(this.uiTime * 6);
-      ctx.fillStyle = `rgba(255, 220, 82, ${shimmer.toFixed(3)})`;
-      ctx.fillRect(k.x, k.y, k.w, k.h);
-      ctx.strokeStyle = "rgba(255, 247, 209, 0.92)";
-      ctx.lineWidth = 1.25;
-      ctx.strokeRect(k.x + 0.5, k.y + 0.5, Math.max(0, k.w - 1), Math.max(0, k.h - 1));
+      this._drawRectComponent(
+        ctx,
+        this.level.keycard,
+        "keycard",
+        this.level.keycard.variant || "default",
+        { alphaScale: shimmer }
+      );
     }
 
     if (this.level.exitZone) {
-      const e = this.level.exitZone;
-      const exitGradient = ctx.createLinearGradient(e.x, e.y, e.x + e.w, e.y + e.h);
-      exitGradient.addColorStop(0, "rgba(90, 224, 244, 0.9)");
-      exitGradient.addColorStop(1, "rgba(22, 125, 163, 0.85)");
-      ctx.fillStyle = exitGradient;
-      ctx.fillRect(e.x, e.y, e.w, e.h);
-      ctx.strokeStyle = "rgba(191, 243, 255, 0.75)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(e.x + 1, e.y + 1, Math.max(0, e.w - 2), Math.max(0, e.h - 2));
+      this._drawRectComponent(ctx, this.level.exitZone, "exitZone", this.level.exitZone.variant || "default");
     }
   }
 
-  _drawWorldGrid(ctx, width, height) {
-    const gridSize = 64;
+  _drawWorldGrid(ctx, width, height, floorVisual = null) {
+    const gridSize = Math.max(8, Math.round(this._num(floorVisual?.gridSize, 64)));
     ctx.save();
-    ctx.strokeStyle = "rgba(168, 205, 244, 0.04)";
+    ctx.strokeStyle = floorVisual?.gridColor || "rgba(168, 205, 244, 0.04)";
     ctx.lineWidth = 1;
 
     for (let x = 0; x <= width; x += gridSize) {
@@ -236,20 +196,167 @@ class LevelRenderer {
     ctx.restore();
   }
 
+  _drawRectComponent(ctx, rect, componentType, variant = "default", options = {}) {
+    if (!rect || rect.w <= 0 || rect.h <= 0) return;
+
+    const visual = this._getComponentVisual(componentType, variant);
+    const alphaScale = this._num(options.alphaScale, 1);
+
+    const drewSprite = this._drawSpriteFill(ctx, rect, visual, alphaScale);
+    if (!drewSprite) {
+      const fillAlpha = this._num(visual?.alpha, 1) * alphaScale;
+      ctx.save();
+      if (fillAlpha < 1) ctx.globalAlpha *= fillAlpha;
+
+      if (visual && Array.isArray(visual.gradientStops) && visual.gradientStops.length >= 2) {
+        ctx.fillStyle = this._createGradient(ctx, rect, visual.gradientStops, visual.gradientAxis);
+      } else {
+        ctx.fillStyle = visual?.fill || "rgba(80, 80, 80, 1)";
+      }
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.restore();
+    }
+
+    if (visual?.overlay) {
+      ctx.save();
+      ctx.fillStyle = visual.overlay;
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.restore();
+    }
+
+    if (!options.skipBorder) {
+      const borderColor = visual?.borderColor;
+      const borderWidth = this._num(visual?.borderWidth, 0);
+      if (borderColor && borderWidth > 0) {
+        const inset = borderWidth / 2;
+        ctx.save();
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = borderWidth;
+        ctx.strokeRect(
+          rect.x + inset,
+          rect.y + inset,
+          Math.max(0, rect.w - borderWidth),
+          Math.max(0, rect.h - borderWidth)
+        );
+        ctx.restore();
+      }
+    }
+  }
+
+  _drawSpriteFill(ctx, rect, visual, alphaScale = 1) {
+    if (!visual || !visual.spritePath) return false;
+    const slot = this.componentArt[visual.spritePath];
+    if (!slot || !slot.loaded || !slot.image) return false;
+
+    const spriteAlpha = this._num(visual.spriteAlpha, 1) * alphaScale;
+    ctx.save();
+    if (spriteAlpha < 1) ctx.globalAlpha *= spriteAlpha;
+
+    if (visual.tileMode === "repeat") {
+      const pattern = ctx.createPattern(slot.image, "repeat");
+      if (!pattern) {
+        ctx.restore();
+        return false;
+      }
+      ctx.translate(rect.x, rect.y);
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, rect.w, rect.h);
+    } else {
+      ctx.drawImage(slot.image, rect.x, rect.y, rect.w, rect.h);
+    }
+
+    ctx.restore();
+    return true;
+  }
+
+  _createGradient(ctx, rect, stops, axis = "y") {
+    let gradient;
+    if (axis === "x") {
+      gradient = ctx.createLinearGradient(rect.x, rect.y, rect.x + rect.w, rect.y);
+    } else if (axis === "diag") {
+      gradient = ctx.createLinearGradient(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
+    } else {
+      gradient = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h);
+    }
+
+    const denominator = Math.max(1, stops.length - 1);
+    for (let i = 0; i < stops.length; i++) {
+      gradient.addColorStop(i / denominator, stops[i]);
+    }
+    return gradient;
+  }
+
+  _getComponentVisual(componentType, variant) {
+    if (typeof getComponentVisual !== "function") return null;
+    return getComponentVisual(componentType, variant);
+  }
+
+  _drawRockProjectiles(ctx) {
+    const rocks = Array.isArray(this.state.rockProjectiles) ? this.state.rockProjectiles : [];
+    if (!rocks.length) return;
+
+    for (const rock of rocks) {
+      if (!rock) continue;
+
+      const x = this._num(rock.x, 0);
+      const y = this._num(rock.y, 0);
+      const arc = Math.max(0, this._num(rock.arc, 0));
+      const r = Math.max(2, this._num(rock.radius, 3));
+
+      ctx.save();
+      ctx.fillStyle = "rgba(5, 12, 20, 0.28)";
+      ctx.beginPath();
+      ctx.ellipse(x, y + 1, r + 2, Math.max(1, r * 0.9), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.fillStyle = "rgba(210, 218, 230, 0.96)";
+      ctx.strokeStyle = "rgba(84, 98, 116, 0.95)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y - arc, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   _drawNoisePulse(ctx) {
     if (!this.state.noise) return;
 
-    const pulse = 0.7 + 0.3 * Math.sin(this.uiTime * 9);
+    const noise = this.state.noise;
+    const ttl = Math.max(0, this._num(noise.ttl, 0));
+    const life = Math.max(0.001, this._num(noise.life, ttl || 1));
+    const age = clamp(1 - ttl / life, 0, 1);
+    const fade = 1 - age;
+    const radius = Math.max(8, this._num(noise.radius, 110));
+    const coreRadius = Math.max(4, this._num(noise.coreRadius, 14));
+    const pulseRadius = coreRadius + age * Math.min(radius, coreRadius * 5);
+    const corePulse = 0.8 + 0.2 * Math.sin(this.uiTime * 18);
+
     ctx.save();
-    ctx.globalAlpha = 0.24 * pulse;
-    ctx.fillStyle = "rgba(126, 214, 255, 0.44)";
+    ctx.fillStyle = `rgba(198, 232, 255, ${(0.66 * fade).toFixed(3)})`;
     ctx.beginPath();
-    ctx.arc(this.state.noise.x, this.state.noise.y, this.state.noise.radius, 0, Math.PI * 2);
+    ctx.arc(noise.x, noise.y, coreRadius * corePulse, 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 0.75;
-    ctx.strokeStyle = "rgba(141, 225, 255, 0.95)";
+
+    ctx.strokeStyle = `rgba(141, 225, 255, ${(0.9 * fade).toFixed(3)})`;
     ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(noise.x, noise.y, pulseRadius, 0, Math.PI * 2);
     ctx.stroke();
+
+    if (radius > pulseRadius + 8) {
+      ctx.setLineDash([6, 8]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = `rgba(138, 213, 255, ${(0.24 * fade).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(noise.x, noise.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     ctx.restore();
   }
 
@@ -901,6 +1008,22 @@ class LevelRenderer {
 
     if (chaseActive) return 1;
     return clamp(maxDetection, 0, 1);
+  }
+
+  _getComponentSpritePathMap() {
+    const map = {};
+    if (typeof listComponentSpritePaths !== "function") return map;
+    const paths = listComponentSpritePaths();
+    for (const path of paths) {
+      if (!path) continue;
+      map[path] = path;
+    }
+    return map;
+  }
+
+  _num(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
   }
 
   _loadUiArt(pathMap) {

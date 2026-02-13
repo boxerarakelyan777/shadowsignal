@@ -19,9 +19,15 @@ class GameController {
 
     const rockDefaults = (typeof TUNING !== "undefined" && TUNING.rock) ? TUNING.rock : {};
     this.maxThrowRange = this._num(rockDefaults.maxThrowRange, 250);
-    this.noiseRadius = this._num(rockDefaults.noiseRadius, 160);
-    this.noiseTTL = this._num(rockDefaults.noiseTTL, 1.0);
-    this.throwCooldownDuration = this._num(rockDefaults.cooldown, 0.5);
+    this.throwSpeed = this._num(rockDefaults.throwSpeed, 760);
+    this.throwArcHeight = this._num(rockDefaults.arcHeight, 18);
+    this.noiseRadius = this._num(rockDefaults.noiseRadius, 120);
+    this.impactVisualRadius = this._num(rockDefaults.impactVisualRadius, 14);
+    this.noiseTTL = this._num(rockDefaults.noiseTTL, 0.7);
+    this.throwCooldownDuration = this._num(rockDefaults.cooldown, 0.45);
+    this.noiseEventSeq = this._num(state.noiseEventSeq, 0);
+
+    if (!Array.isArray(this.state.rockProjectiles)) this.state.rockProjectiles = [];
 
     this.levelCatalog = Array.isArray(options.levelCatalog) ? options.levelCatalog : [];
     this.scheduleLevelLoad =
@@ -191,6 +197,8 @@ class GameController {
 
     const dt = this.game.clockTick;
     this.throwCooldown = Math.max(0, this.throwCooldown - dt);
+    this._updateNoiseEvents(dt);
+    this._updateRockProjectiles(dt);
 
     if (this.state.messageTimer > 0) {
       this.state.messageTimer -= dt;
@@ -200,46 +208,10 @@ class GameController {
       }
     }
 
-    if (Array.isArray(this.state.noiseEvents) && this.state.noiseEvents.length) {
-      for (const event of this.state.noiseEvents) {
-        event.ttl -= dt;
-      }
-      this.state.noiseEvents = this.state.noiseEvents.filter(e => e.ttl > 0);
-      this.state.noise = this.state.noiseEvents[this.state.noiseEvents.length - 1] || null;
-    } else {
-      this.state.noiseEvents = [];
-      this.state.noise = null;
-    }
-
     if (this.game.click) {
       const click = this.game.click;
       this.game.click = null;
-      if (this.state.playerState === "NORMAL" && this.throwCooldown <= 0) {
-        const cam = this.game.camera;
-        const worldX = click.x / cam.zoom + cam.x;
-        const worldY = click.y / cam.zoom + cam.y;
-        const px = this.player.x + this.player.w / 2;
-        const py = this.player.y + this.player.h / 2;
-        const dx = worldX - px;
-        const dy = worldY - py;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 0) {
-          const t = dist > this.maxThrowRange ? this.maxThrowRange / dist : 1;
-          const nx = px + dx * t;
-          const ny = py + dy * t;
-          const noiseEvent = {
-            x: nx,
-            y: ny,
-            radius: this.noiseRadius,
-            ttl: this.noiseTTL,
-            createdAt: this.game.timer ? this.game.timer.gameTime : Date.now() / 1000,
-          };
-          if (!Array.isArray(this.state.noiseEvents)) this.state.noiseEvents = [];
-          this.state.noiseEvents.push(noiseEvent);
-          this.state.noise = noiseEvent;
-          this.throwCooldown = this.throwCooldownDuration;
-        }
-      }
+      this._handleThrowClick(click);
     }
 
     const interaction = getInteraction(this.player, this.level, this.state);
@@ -347,6 +319,8 @@ class GameController {
     this.state.messageTimer = 0;
     this.state.noise = null;
     this.state.noiseEvents = [];
+    this.state.rockProjectiles = [];
+    this.state.noiseEventSeq = 0;
     this.state.activeHideSpot = null;
     this.state.lastCaptureByGuardId = null;
     this.state.debugInfo = { guards: [] };
@@ -358,6 +332,7 @@ class GameController {
     this.lastInteractionTarget = null;
     this.lastInteractionType = null;
     this.throwCooldown = 0;
+    this.noiseEventSeq = 0;
 
     if (this.keycardSpawn) {
       this.level.keycard = { ...this.keycardSpawn };
@@ -502,6 +477,195 @@ class GameController {
   _levelCount() {
     if (this.levelCatalog.length) return this.levelCatalog.length;
     return Math.max(1, this._num(this.state.levelCount, 1));
+  }
+
+  _handleThrowClick(click) {
+    if (this.state.playerState !== "NORMAL" || this.throwCooldown > 0) return;
+
+    const worldPoint = this._toWorldPoint(click);
+    if (!worldPoint) return;
+
+    const playerCenter = this._playerCenter();
+    const target = this._computeThrowTarget(playerCenter.x, playerCenter.y, worldPoint.x, worldPoint.y);
+    if (!target) return;
+
+    this._spawnRockProjectile(playerCenter, target);
+    this.throwCooldown = this.throwCooldownDuration;
+  }
+
+  _spawnRockProjectile(start, target) {
+    const dx = target.x - start.x;
+    const dy = target.y - start.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 2) return;
+
+    const duration = clamp(dist / Math.max(1, this.throwSpeed), 0.08, 0.52);
+    const arcHeight = clamp(this.throwArcHeight + dist * 0.035, 10, 28);
+
+    if (!Array.isArray(this.state.rockProjectiles)) this.state.rockProjectiles = [];
+    this.state.rockProjectiles.push({
+      startX: start.x,
+      startY: start.y,
+      targetX: target.x,
+      targetY: target.y,
+      x: start.x,
+      y: start.y,
+      elapsed: 0,
+      duration,
+      arcHeight,
+      arc: 0,
+      radius: 3,
+    });
+  }
+
+  _updateRockProjectiles(dt) {
+    if (!Array.isArray(this.state.rockProjectiles) || !this.state.rockProjectiles.length) {
+      this.state.rockProjectiles = [];
+      return;
+    }
+
+    const active = [];
+    for (const rock of this.state.rockProjectiles) {
+      if (!rock) continue;
+
+      rock.elapsed += dt;
+      const t = clamp(rock.elapsed / Math.max(0.001, rock.duration), 0, 1);
+      rock.x = this._lerp(rock.startX, rock.targetX, t);
+      rock.y = this._lerp(rock.startY, rock.targetY, t);
+      rock.arc = Math.sin(t * Math.PI) * rock.arcHeight;
+
+      if (t >= 1) {
+        this._emitRockImpact(rock.targetX, rock.targetY);
+      } else {
+        active.push(rock);
+      }
+    }
+    this.state.rockProjectiles = active;
+  }
+
+  _emitRockImpact(x, y) {
+    this.noiseEventSeq += 1;
+    this.state.noiseEventSeq = this.noiseEventSeq;
+
+    const noiseEvent = {
+      id: this.noiseEventSeq,
+      source: "rock",
+      x,
+      y,
+      radius: this.noiseRadius,
+      coreRadius: this.impactVisualRadius,
+      ttl: this.noiseTTL,
+      life: this.noiseTTL,
+      createdAt: this.game.timer ? this.game.timer.gameTime : Date.now() / 1000,
+    };
+
+    if (!Array.isArray(this.state.noiseEvents)) this.state.noiseEvents = [];
+    this.state.noiseEvents.push(noiseEvent);
+    this.state.noise = noiseEvent;
+  }
+
+  _updateNoiseEvents(dt) {
+    if (!Array.isArray(this.state.noiseEvents) || !this.state.noiseEvents.length) {
+      this.state.noiseEvents = [];
+      this.state.noise = null;
+      return;
+    }
+
+    for (const event of this.state.noiseEvents) {
+      if (!Number.isFinite(event.life) || event.life <= 0) {
+        event.life = Math.max(0.001, this._num(event.ttl, this.noiseTTL));
+      }
+      event.ttl -= dt;
+    }
+
+    this.state.noiseEvents = this.state.noiseEvents.filter(e => e.ttl > 0);
+    this.state.noise = this.state.noiseEvents[this.state.noiseEvents.length - 1] || null;
+  }
+
+  _playerCenter() {
+    return {
+      x: this.player.x + this.player.w / 2,
+      y: this.player.y + this.player.h / 2,
+    };
+  }
+
+  _toWorldPoint(click) {
+    if (!click) return null;
+    const cam = this.game.camera;
+    return {
+      x: click.x / cam.zoom + cam.x,
+      y: click.y / cam.zoom + cam.y,
+    };
+  }
+
+  _computeThrowTarget(fromX, fromY, toX, toY) {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) return null;
+
+    const scale = dist > this.maxThrowRange ? this.maxThrowRange / dist : 1;
+    const rawTarget = this._clampPointToLevel(fromX + dx * scale, fromY + dy * scale);
+    const travelDist = Math.hypot(rawTarget.x - fromX, rawTarget.y - fromY);
+    const steps = Math.max(6, Math.ceil(travelDist / 10));
+
+    let last = this._clampPointToLevel(fromX, fromY);
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const sample = this._clampPointToLevel(
+        this._lerp(fromX, rawTarget.x, t),
+        this._lerp(fromY, rawTarget.y, t)
+      );
+
+      if (typeof segmentIntersectsRect === "function") {
+        const a = { x: last.x, y: last.y };
+        const b = { x: sample.x, y: sample.y };
+        const walls = Array.isArray(this.level?.walls) ? this.level.walls : [];
+        let blocked = false;
+        for (const wall of walls) {
+          if (!wall) continue;
+          if (wall.componentType === "lockedDoor" && (wall.locked === false || wall.state === "OPEN")) continue;
+          if (segmentIntersectsRect(a, b, wall)) {
+            blocked = true;
+            break;
+          }
+        }
+        if (blocked) break;
+      }
+
+      if (this._isPointInsideWall(sample.x, sample.y)) {
+        break;
+      }
+
+      last = sample;
+    }
+
+    return last;
+  }
+
+  _clampPointToLevel(x, y) {
+    const maxX = Math.max(0, this._num(this.level?.width, 0));
+    const maxY = Math.max(0, this._num(this.level?.height, 0));
+    return {
+      x: clamp(x, 0, maxX),
+      y: clamp(y, 0, maxY),
+    };
+  }
+
+  _isPointInsideWall(x, y) {
+    const walls = Array.isArray(this.level?.walls) ? this.level.walls : [];
+    for (const wall of walls) {
+      if (!wall) continue;
+      if (wall.componentType === "lockedDoor" && (wall.locked === false || wall.state === "OPEN")) continue;
+      if (x > wall.x && x < wall.x + wall.w && y > wall.y && y < wall.y + wall.h) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _lerp(a, b, t) {
+    return a + (b - a) * t;
   }
 
   _num(value, fallback) {

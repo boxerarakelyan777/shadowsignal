@@ -25,6 +25,8 @@ const STATE = {
   activeHideSpot: null,
   noise: null,
   noiseEvents: [],
+  rockProjectiles: [],
+  noiseEventSeq: 0,
   debug: false,
   uiPrompt: "",
   message: "",
@@ -36,6 +38,10 @@ const STATE = {
   menuOptionRects: [],
   levelOptionRects: [],
 };
+
+//downloading sprites
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_walk.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_walk.png");
 
 ASSET_MANAGER.downloadAll(() => {
   // Backround music setup
@@ -78,6 +84,7 @@ ASSET_MANAGER.downloadAll(() => {
 
   // Make sure canvas receives keyboard events (GameEngine listens on canvas)
   canvas.focus();
+  canvas.addEventListener("pointerdown", () => canvas.focus());
 
   // Start music on the first user gesture that successfully resolves play().
   let musicStarted = false;
@@ -122,6 +129,7 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   const safeLevelIndex = clamp(levelIndex, 0, LEVEL_CATALOG.length - 1);
   const levelEntry = LEVEL_CATALOG[safeLevelIndex];
   const level = cloneLevel(levelEntry.data);
+  normalizeLevelComponents(level);
   const guardConfigs = normalizeLevelGuards(level);
 
   gameEngine.level = level;
@@ -145,14 +153,19 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   STATE.activeHideSpot = null;
   STATE.noise = null;
   STATE.noiseEvents = [];
+  STATE.rockProjectiles = [];
+  STATE.noiseEventSeq = 0;
   STATE.uiPrompt = "";
   STATE.message = "";
   STATE.messageTimer = 0;
   gameEngine.click = null;
 
-  const player = new Player(gameEngine, level, STATE);
+  const playerSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_walk.png");
+  const guardSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_walk.png");
+  const player = new Player(gameEngine, level, STATE, playerSprite);
   const guards = guardConfigs.map(
-    (guardConfig, index) => new Guard(gameEngine, level, STATE, player, guardConfig, index)
+    (guardConfig, index) =>
+      new Guard(gameEngine, level, STATE, player, guardConfig, index, guardSprite)
   );
   const levelRenderer = new LevelRenderer(gameEngine, level, STATE);
   const controller = new GameController(gameEngine, STATE, level, player, {

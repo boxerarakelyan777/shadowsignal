@@ -27,6 +27,18 @@ Final release target: the game must be fully sprite-based.
 
 ---
 
+## Global Component System
+
+The project now uses a central component registry so one change can update many places.
+
+- `src/config/components.js` holds shared defaults, visual styles, sprite paths, and prefab builders.
+- Levels use prefab creators (`createWall`, `createHideSpot`, `createTerminal`, etc.) instead of raw objects.
+- `normalizeLevelComponents(level)` runs on level load in `main.js` to apply defaults consistently.
+- `LevelRenderer` reads component visuals from the registry, so changing a visual token in one file updates all matching components.
+- Player and guard baseline settings also read centralized defaults from the component registry.
+
+---
+
 ## Quick Start (All OS)
 
 ### 1) Clone + checkout `dev`

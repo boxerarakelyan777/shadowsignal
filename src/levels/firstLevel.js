@@ -1,48 +1,47 @@
 // Tutorial Level src/levels/firstLevel.js
-const FIRST_LEVEL_GUARD = {
+const FIRST_LEVEL_GUARD = createGuard({
   x: 1400,
   y: 600,
-  w: 28,
-  h: 28,
   // Waypoints in open space (won't hit walls)
   waypoints: [
     { x: 1350, y: 420 },
     { x: 1350, y: 780 },
   ],
-};
+});
 
 const FIRST_LEVEL = {
   width: 3200,
   height: 1200,
+  floorVariant: "default",
 
   playerSpawn: { x: 80, y: 400 },
 
-  exitZone: { x: 3000, y: 500, w: 150, h: 200 },
+  exitZone: createExitZone({ x: 3000, y: 500, w: 150, h: 200 }),
 
-  keycard: { x: 2100, y: 560, w: 26, h: 26 },
-    
+  keycard: createKeycard({ x: 2100, y: 560 }),
+
   hideSpots: [
-    { x: 80, y: 180, w: 50, h: 50 },
+    createHideSpot({ x: 80, y: 180, w: 50, h: 50 }),
   ],
 
   // TODO: Add signage / text entity to all areas
-  //tutorialZones: [
-  //  { x: 200, y: 0, w: 800, h: 1200, label: "MOVE" }, // Learning Movement Area
-  //  { x: 800, y: 0, w: 600, h: 1200, label: "HIDE" }, // Learning Hiding Spots Area
-  //  { x: 1400, y:0, w:600, h:1200, label: "VISION" } // Learning Guard Vision Area
-  //],
+  // tutorialZones: [
+  //   { x: 200, y: 0, w: 800, h: 1200, label: "MOVE" },
+  //   { x: 800, y: 0, w: 600, h: 1200, label: "HIDE" },
+  //   { x: 1400, y: 0, w: 600, h: 1200, label: "VISION" },
+  // ],
 
-  walls: [
+  walls: createWalls([
     // Outer bounds
-    { x: 0, y: 120, w: 3160, h: 40 }, //top
-    { x: 0, y: 1160, w: 3160, h: 40 }, //bottom
-    { x: 0, y: 0, w: 40, h: 1160 }, //left
-    { x: 3160, y: 0, w: 40, h: 1160 }, //right
+    { x: 0, y: 120, w: 3160, h: 40 }, // top
+    { x: 0, y: 1160, w: 3160, h: 40 }, // bottom
+    { x: 0, y: 0, w: 40, h: 1160 }, // left
+    { x: 3160, y: 0, w: 40, h: 1160 }, // right
 
     // LOS blocker between player and guard
     { x: 1200, y: 220, w: 60, h: 760 },
 
-    // Row 0 (y = 440)   cols 2-13
+    // Row 0 (y = 440) cols 2-13
     { x: 580, y: 340, w: 40, h: 40 },
     { x: 620, y: 340, w: 40, h: 40 },
     { x: 660, y: 340, w: 40, h: 40 },
@@ -56,11 +55,11 @@ const FIRST_LEVEL = {
     { x: 980, y: 340, w: 40, h: 40 },
     { x: 1020, y: 340, w: 40, h: 40 },
 
-    // Row 1 (y = 480)   cols 5,13
+    // Row 1 (y = 480) cols 5,13
     { x: 700, y: 380, w: 40, h: 40 },
     { x: 1020, y: 380, w: 40, h: 40 },
 
-    // Row 2 (y = 520)  cols 0,1,2,3,5,7,8,9,10,11,13
+    // Row 2 (y = 520) cols 0,1,2,3,5,7,8,9,10,11,13
     { x: 500, y: 420, w: 40, h: 40 },
     { x: 540, y: 420, w: 40, h: 40 },
     { x: 580, y: 420, w: 40, h: 40 },
@@ -73,12 +72,12 @@ const FIRST_LEVEL = {
     { x: 940, y: 420, w: 40, h: 40 },
     { x: 1020, y: 420, w: 40, h: 40 },
 
-    // Row 3 (y = 560)  cols 0,7,13
+    // Row 3 (y = 560) cols 0,7,13
     { x: 500, y: 460, w: 40, h: 40 },
     { x: 780, y: 460, w: 40, h: 40 },
     { x: 1020, y: 460, w: 40, h: 40 },
 
-    // Row 4 (y = 600)  cols 0,2,3,4,5,6,7,9,10,11,12,13
+    // Row 4 (y = 600) cols 0,2,3,4,5,6,7,9,10,11,12,13
     { x: 500, y: 500, w: 40, h: 40 },
     { x: 580, y: 500, w: 40, h: 40 },
     { x: 620, y: 500, w: 40, h: 40 },
@@ -92,12 +91,12 @@ const FIRST_LEVEL = {
     { x: 980, y: 500, w: 40, h: 40 },
     { x: 1020, y: 500, w: 40, h: 40 },
 
-    // Row 5 (y = 640)  cols 0,2,13
+    // Row 5 (y = 640) cols 0,2,13
     { x: 500, y: 540, w: 40, h: 40 },
     { x: 580, y: 540, w: 40, h: 40 },
     { x: 1020, y: 540, w: 40, h: 40 },
 
-    // Row 6 (y = 680)  cols 0,2,4,5,6,7,8,9,10,11,13
+    // Row 6 (y = 680) cols 0,2,4,5,6,7,8,9,10,11,13
     { x: 500, y: 580, w: 40, h: 40 },
     { x: 580, y: 580, w: 40, h: 40 },
     { x: 660, y: 580, w: 40, h: 40 },
@@ -110,12 +109,12 @@ const FIRST_LEVEL = {
     { x: 940, y: 580, w: 40, h: 40 },
     { x: 1020, y: 580, w: 40, h: 40 },
 
-    // Row 7 (y = 720)  cols 0,8,13
+    // Row 7 (y = 720) cols 0,8,13
     { x: 500, y: 620, w: 40, h: 40 },
     { x: 820, y: 620, w: 40, h: 40 },
     { x: 1020, y: 620, w: 40, h: 40 },
 
-    // Row 8 (y = 760)  cols 0,1,2,4,6,7,8,9,10,11,13
+    // Row 8 (y = 760) cols 0,1,2,4,6,7,8,9,10,11,13
     { x: 500, y: 660, w: 40, h: 40 },
     { x: 540, y: 660, w: 40, h: 40 },
     { x: 580, y: 660, w: 40, h: 40 },
@@ -128,7 +127,7 @@ const FIRST_LEVEL = {
     { x: 940, y: 660, w: 40, h: 40 },
     { x: 1020, y: 660, w: 40, h: 40 },
 
-    // Row 9 (y = 800)  cols 0,6,11,13
+    // Row 9 (y = 800) cols 0,6,11,13
     { x: 500, y: 700, w: 40, h: 40 },
     { x: 740, y: 700, w: 40, h: 40 },
     { x: 940, y: 700, w: 40, h: 40 },
@@ -186,10 +185,10 @@ const FIRST_LEVEL = {
     { x: 980, y: 900, w: 40, h: 40 },
     { x: 1020, y: 900, w: 40, h: 40 },
 
-    // Maze Boundaries
+    // Maze boundaries
     { x: 500, y: 0, w: 560, h: 380 },
     { x: 500, y: 940, w: 560, h: 220 },
-  ],
+  ]),
 
   guards: [FIRST_LEVEL_GUARD],
   guard: FIRST_LEVEL_GUARD,
