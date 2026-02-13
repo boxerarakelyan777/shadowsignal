@@ -735,7 +735,7 @@ class LevelRenderer {
   }
 
   _drawGameplayHud(ctx, cw, ch) {
-    const hasKeycard = !!(this.state.hasKeycard || this.state.hasKey);
+    const hasKeycard = !!this.state.hasKeycard;
     const hasDoor = !!this.level.lockedDoor;
     const doorOpen = !hasDoor || this.level.lockedDoor.locked === false || this.level.lockedDoor.state === "OPEN";
     const hasTerminal = !!this.level.terminal;

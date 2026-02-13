@@ -28,25 +28,25 @@ class Guard {
 
     this.patrolSpeed = numberOr(
       fallbackConfig.patrolSpeed,
-      numberOr(guardDefaults.patrolSpeed, numberOr(componentDefaults.patrolSpeed, 90))
+      numberOr(guardDefaults.patrolSpeed, 90)
     );
     this.chaseSpeed = numberOr(
       fallbackConfig.chaseSpeed,
-      numberOr(guardDefaults.chaseSpeed, numberOr(componentDefaults.chaseSpeed, this.patrolSpeed))
+      numberOr(guardDefaults.chaseSpeed, this.patrolSpeed)
     );
     this.returnSpeed = numberOr(
       fallbackConfig.returnSpeed,
-      numberOr(guardDefaults.returnSpeed, numberOr(componentDefaults.returnSpeed, this.patrolSpeed))
+      numberOr(guardDefaults.returnSpeed, this.patrolSpeed)
     );
 
     this.visionRange = numberOr(
       fallbackConfig.visionRange,
-      numberOr(guardDefaults.visionRange, numberOr(componentDefaults.visionRange, 320))
+      numberOr(guardDefaults.visionRange, 320)
     );
 
     let fovDeg = numberOr(
       fallbackConfig.fovDeg,
-      numberOr(guardDefaults.fovDeg, numberOr(componentDefaults.fovDeg, 80))
+      numberOr(guardDefaults.fovDeg, 80)
     );
 
     if (this.type === "WIDE") {
@@ -82,24 +82,15 @@ class Guard {
     this.drawOffsetY = (this.h - this.drawH) / 2;
     this.waypointReachDistance = numberOr(
       fallbackConfig.waypointReachDistance,
-      numberOr(
-        guardDefaults.waypointReachDistance,
-        numberOr(componentDefaults.waypointReachDistance, 8)
-      )
+      numberOr(guardDefaults.waypointReachDistance, 8)
     );
     this.stuckMoveThreshold = numberOr(
       fallbackConfig.stuckMoveThreshold,
-      numberOr(
-        guardDefaults.stuckMoveThreshold,
-        numberOr(componentDefaults.stuckMoveThreshold, 0.5)
-      )
+      numberOr(guardDefaults.stuckMoveThreshold, 0.5)
     );
     this.stuckAdvanceDelay = numberOr(
       fallbackConfig.stuckAdvanceDelay,
-      numberOr(
-        guardDefaults.stuckAdvanceDelay,
-        numberOr(componentDefaults.stuckAdvanceDelay, 0.35)
-      )
+      numberOr(guardDefaults.stuckAdvanceDelay, 0.35)
     );
 
     this.detection = 0;
@@ -140,10 +131,7 @@ class Guard {
 
     this.investigatePauseDuration = numberOr(
       fallbackConfig.investigatePauseDuration,
-      numberOr(
-        guardDefaults.investigatePauseDuration,
-        numberOr(componentDefaults.investigatePauseDuration, 1.4)
-      )
+      numberOr(guardDefaults.investigatePauseDuration, 1.4)
     );
     this.investigateRotateSpeed = numberOr(
       fallbackConfig.investigateRotateSpeed,
@@ -173,7 +161,6 @@ class Guard {
 
     this.investigateTarget = null;
     this.investigatePauseTimer = 0;
-    this.investigateFacingSeed = 0;
 
     this.lastSeen = null;
     this.lastSeenFacing = 0;
@@ -181,7 +168,6 @@ class Guard {
     this.searchPlan = [];
     this.searchIndex = 0;
     this.searchPauseTimer = 0;
-    this.searchFacingSeed = 0;
     this.lastHeardNoiseId = -1;
 
     this.speed = this.patrolSpeed;
@@ -259,7 +245,6 @@ class Guard {
       this.aiState = "INVESTIGATE";
       this.investigateTarget = { x: heardNoise.x, y: heardNoise.y };
       this.investigatePauseTimer = 0;
-      this.investigateFacingSeed = this.facing;
       if (heardNoiseId >= 0) this.lastHeardNoiseId = heardNoiseId;
     }
 
@@ -282,7 +267,6 @@ class Guard {
             this.aiState = "INVESTIGATE";
             this.investigateTarget = { x: this.lastSeen.x, y: this.lastSeen.y };
             this.investigatePauseTimer = 0;
-            this.investigateFacingSeed = this.facing;
           }
         }
       } else {
@@ -341,14 +325,12 @@ class Guard {
         this.investigatePauseTimer <= 0
       ) {
         this.investigatePauseTimer = this.investigatePauseDuration;
-        this.investigateFacingSeed = this.facing;
       } else if (
         this.aiState === "SEARCH" &&
         dist < this.waypointReachDistance &&
         this.searchPauseTimer <= 0
       ) {
         this.searchPauseTimer = this.searchPauseDuration;
-        this.searchFacingSeed = this.facing;
       } else if (this.aiState === "RETURN" && dist < this.waypointReachDistance) {
         this.aiState = "PATROL";
       } else if (dist >= 1) {
@@ -544,7 +526,6 @@ class Guard {
 
     this.investigateTarget = null;
     this.investigatePauseTimer = 0;
-    this.investigateFacingSeed = 0;
 
     this.lastSeen = null;
     this.lastSeenFacing = 0;
@@ -552,7 +533,6 @@ class Guard {
     this.searchPlan = [];
     this.searchIndex = 0;
     this.searchPauseTimer = 0;
-    this.searchFacingSeed = 0;
     this.lastHeardNoiseId = -1;
 
     this._wasHiddenPrev = false;
@@ -596,7 +576,6 @@ class Guard {
     this.searchPlan = plan;
     this.searchIndex = 0;
     this.searchPauseTimer = this.searchPauseDuration;
-    this.searchFacingSeed = baseFacing;
   }
 
   _getActiveOrNearestHideSpotCenter(playerCenter, radius) {
@@ -647,7 +626,6 @@ class Guard {
         g.aiState = "INVESTIGATE";
         g.investigateTarget = { x: lastSeen.x, y: lastSeen.y };
         g.investigatePauseTimer = 0;
-        g.investigateFacingSeed = g.facing;
       }
     }
   }

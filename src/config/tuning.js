@@ -1,5 +1,6 @@
 // src/config/tuning.js
 const TUNING = {
+  // Guard behavior source-of-truth (AI/gameplay values).
   guard: {
     patrolSpeed: 90,
     chaseSpeed: 140,

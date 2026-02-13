@@ -15,7 +15,6 @@ const STATE = {
   menuIndex: 0,
   levelCount: LEVEL_CATALOG.length,
   levelMeta: LEVEL_CATALOG.map(level => ({ id: level.id, name: level.name })),
-  hasKey: false,
   hasKeycard: false,
   objectiveComplete: false,
   terminalComplete: false,
@@ -144,7 +143,6 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   STATE.menuIndex = clamp(Number(STATE.menuIndex) || 0, 0, 1);
   STATE.status = initialStatus;
   STATE.playerState = "NORMAL";
-  STATE.hasKey = false;
   STATE.hasKeycard = false;
   STATE.objectiveComplete = false;
   STATE.terminalComplete = false;

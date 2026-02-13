@@ -15,21 +15,14 @@ const COMPONENT_LIBRARY = Object.freeze({
       drawH: 48,
       speed: 220,
     }),
+    // Guard geometry/render defaults only.
+    // Guard behavior tuning lives in TUNING.guard.
     guard: Object.freeze({
       componentType: "guard",
       w: 28,
       h: 28,
       drawW: 48,
       drawH: 48,
-      patrolSpeed: 90,
-      chaseSpeed: 140,
-      returnSpeed: 100,
-      visionRange: 320,
-      fovDeg: 80,
-      waypointReachDistance: 8,
-      stuckMoveThreshold: 0.5,
-      stuckAdvanceDelay: 0.35,
-      investigatePauseDuration: 0.6,
     }),
     wall: Object.freeze({
       componentType: "wall",

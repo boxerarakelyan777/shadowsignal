@@ -307,7 +307,6 @@ class GameController {
     this.player.y = this.level.playerSpawn.y;
     this.player.lastDir = { x: 1, y: 0 };
 
-    this.state.hasKey = false;
     this.state.hasKeycard = false;
     this.state.objectiveComplete = false;
     this.state.terminalComplete = false;

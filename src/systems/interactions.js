@@ -19,7 +19,7 @@ function getInteraction(player, level, state) {
   const candidates = [];
   const playerCenter = centerOf(player);
   const isHidden = player.hidden || state.playerState === "HIDDEN";
-  const hasKeycard = !!(state.hasKeycard || state.hasKey);
+  const hasKeycard = !!state.hasKeycard;
 
   const addCandidate = (trigger, data) => {
     if (!trigger) return;
@@ -187,7 +187,6 @@ function performInteraction(interaction, player, level, state) {
 
   if (actionId === "pickup-keycard") {
     state.hasKeycard = true;
-    state.hasKey = true;
     level.keycard = null;
     state.message = "Keycard acquired.";
     state.messageTimer = MESSAGE_DURATION;
@@ -201,7 +200,7 @@ function performInteraction(interaction, player, level, state) {
   }
 
   if (actionId === "unlock-door") {
-    const hasKeycard = !!(state.hasKeycard || state.hasKey);
+    const hasKeycard = !!state.hasKeycard;
     if (level.lockedDoor?.locked !== false && hasKeycard) {
       level.lockedDoor.locked = false;
       level.lockedDoor.state = "OPEN";
