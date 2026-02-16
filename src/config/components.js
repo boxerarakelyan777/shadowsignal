@@ -11,8 +11,8 @@ const COMPONENT_LIBRARY = Object.freeze({
       componentType: "player",
       w: 22,
       h: 22,
-      drawW: 48,
-      drawH: 48,
+      drawW: 64,
+      drawH: 64,
       speed: 220,
     }),
     // Guard geometry/render defaults only.
@@ -21,8 +21,8 @@ const COMPONENT_LIBRARY = Object.freeze({
       componentType: "guard",
       w: 28,
       h: 28,
-      drawW: 48,
-      drawH: 48,
+      drawW: 64,
+      drawH: 64,
     }),
     wall: Object.freeze({
       componentType: "wall",
@@ -50,6 +50,11 @@ const COMPONENT_LIBRARY = Object.freeze({
       variant: "locked",
       locked: true,
       state: "LOCKED",
+      motionType: "auto",
+      slideAxis: "auto",
+      slideDirection: "auto",
+      openDuration: 0.3,
+      openProgress: 0,
     }),
     exitZone: Object.freeze({
       componentType: "exitZone",
@@ -77,27 +82,45 @@ const COMPONENT_LIBRARY = Object.freeze({
 
     hideSpot: Object.freeze({
       default: Object.freeze({
-        gradientStops: Object.freeze(["rgba(57, 97, 167, 0.88)", "rgba(25, 54, 123, 0.78)"]),
-        gradientAxis: "diag",
-        borderColor: "rgba(188, 232, 255, 0.4)",
-        borderWidth: 1.5,
+        spritePath: "./assets/sprites/shadowsignal_v2/world/hide/hide_pad_idle_64.png",
+        spriteOnly: true,
+        spriteMode: "contain",
+        spritePixelSnap: true,
+        spriteInset: 0,
+        spriteOffsetY: 0,
+        spriteAlpha: 1,
+        borderWidth: 0,
       }),
       occupied: Object.freeze({
-        gradientStops: Object.freeze(["rgba(58, 149, 219, 0.88)", "rgba(36, 82, 163, 0.75)"]),
-        gradientAxis: "diag",
-        borderColor: "rgba(188, 232, 255, 0.4)",
-        borderWidth: 1.5,
+        spritePath: "./assets/sprites/shadowsignal_v2/world/hide/hide_pad_occupied_64.png",
+        spriteOnly: true,
+        spriteMode: "contain",
+        spritePixelSnap: true,
+        spriteInset: 0,
+        spriteOffsetY: 0,
+        spriteAlpha: 1,
+        borderWidth: 0,
       }),
     }),
 
     terminal: Object.freeze({
       default: Object.freeze({
+        spritePath: "./assets/sprites/shadowsignal_v2/world/terminal/terminal_idle_80x60.png",
+        spriteMode: "contain",
+        spritePixelSnap: true,
+        spriteOffsetY: -1,
+        spriteAlpha: 1,
         gradientStops: Object.freeze(["#ffd182", "#bd7a2d"]),
         gradientAxis: "diag",
         borderColor: "rgba(255,255,255,0.4)",
         borderWidth: 1.5,
       }),
       complete: Object.freeze({
+        spritePath: "./assets/sprites/shadowsignal_v2/world/terminal/terminal_complete_80x60.png",
+        spriteMode: "contain",
+        spritePixelSnap: true,
+        spriteOffsetY: -1,
+        spriteAlpha: 1,
         gradientStops: Object.freeze(["#7ff3bf", "#2f8e62"]),
         gradientAxis: "diag",
         borderColor: "rgba(255,255,255,0.4)",
@@ -115,12 +138,20 @@ const COMPONENT_LIBRARY = Object.freeze({
 
     lockedDoor: Object.freeze({
       locked: Object.freeze({
+        spritePath: "./assets/sprites/shadowsignal_v2/world/doors/door_locked_tile_64.png",
+        tileMode: "repeat",
+        spritePixelSnap: true,
+        spriteAlpha: 1,
         gradientStops: Object.freeze(["#b36a3a", "#7e3f1f"]),
         gradientAxis: "y",
         borderColor: "rgba(255, 219, 179, 0.45)",
         borderWidth: 2,
       }),
       open: Object.freeze({
+        spritePath: "./assets/sprites/shadowsignal_v2/world/doors/door_open_track_tile_64.png",
+        tileMode: "repeat",
+        spritePixelSnap: true,
+        spriteAlpha: 1,
         gradientStops: Object.freeze(["rgba(134, 222, 164, 0.9)", "rgba(55, 153, 96, 0.62)"]),
         gradientAxis: "y",
         borderColor: "rgba(176, 255, 211, 0.5)",
@@ -130,10 +161,14 @@ const COMPONENT_LIBRARY = Object.freeze({
 
     exitZone: Object.freeze({
       default: Object.freeze({
-        gradientStops: Object.freeze(["rgba(90, 224, 244, 0.9)", "rgba(22, 125, 163, 0.85)"]),
-        gradientAxis: "diag",
-        borderColor: "rgba(191, 243, 255, 0.75)",
-        borderWidth: 2,
+        spritePath: "./assets/sprites/shadowsignal_v2/world/exit/extract_pad_64.png",
+        spriteOnly: true,
+        spriteMode: "contain",
+        spritePixelSnap: true,
+        spriteInset: 4,
+        spriteMaxScale: 1,
+        spriteAlpha: 1,
+        borderWidth: 0,
       }),
     }),
   }),
@@ -142,6 +177,146 @@ const COMPONENT_LIBRARY = Object.freeze({
 const UI_ASSETS = Object.freeze({
   splashBackground: "./assets/ui/splash-background.jpg",
   menuBackground: "./assets/ui/menu-background.jpg",
+});
+
+const ART_PACK = Object.freeze({
+  basePath: "./assets/sprites/shadowsignal_v2",
+  uiIcons: Object.freeze({
+    interact: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/interact_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    objective: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/objective_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    keycard: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/keycard_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    battery: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/battery_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    pause: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/pause_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    warning: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/warning_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    door_locked: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/door_locked_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    door_unlocked: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/door_unlocked_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    eye: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/eye_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    noise: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/ui/icons/noise_32_strip.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+  }),
+  worldPrompts: Object.freeze({
+    interact: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/prompts/world_prompt_interact_64.png",
+      frameW: 64,
+      frameH: 64,
+      frames: 3,
+      fps: 8,
+      loop: true,
+    }),
+  }),
+  pickups: Object.freeze({
+    keycard: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/pickups/pickup_keycard_32.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+    gem: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/pickups/pickup_datachip_32.png",
+      frameW: 32,
+      frameH: 32,
+      frames: 4,
+      fps: 8,
+      loop: true,
+    }),
+  }),
+  vfx: Object.freeze({
+    sparkle: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/vfx/vfx_sparkle_64.png",
+      frameW: 64,
+      frameH: 64,
+      frames: 6,
+      fps: 14,
+      loop: false,
+    }),
+    hit: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/vfx/vfx_hit_64.png",
+      frameW: 64,
+      frameH: 64,
+      frames: 5,
+      fps: 16,
+      loop: false,
+    }),
+    dust: Object.freeze({
+      path: "./assets/sprites/shadowsignal_v2/vfx/vfx_dust_64.png",
+      frameW: 64,
+      frameH: 64,
+      frames: 6,
+      fps: 12,
+      loop: false,
+    }),
+  }),
 });
 
 function getComponentDefaults(typeId) {
@@ -169,6 +344,49 @@ function listComponentSpritePaths() {
   }
 
   return Array.from(unique);
+}
+
+function listArtPackSpritePaths() {
+  const unique = new Set();
+  if (!ART_PACK) return [];
+
+  for (const icon of Object.values(ART_PACK.uiIcons || {})) {
+    if (icon?.path) unique.add(icon.path);
+  }
+
+  for (const prompt of Object.values(ART_PACK.worldPrompts || {})) {
+    if (prompt?.path) unique.add(prompt.path);
+  }
+
+  for (const pickup of Object.values(ART_PACK.pickups || {})) {
+    if (pickup?.path) unique.add(pickup.path);
+  }
+
+  for (const vfx of Object.values(ART_PACK.vfx || {})) {
+    if (vfx?.path) unique.add(vfx.path);
+  }
+
+  return Array.from(unique);
+}
+
+function getArtPackVfxSpec(typeId) {
+  if (!ART_PACK || !ART_PACK.vfx || !typeId) return null;
+  return ART_PACK.vfx[typeId] || null;
+}
+
+function getArtPackUiIconSpec(iconId) {
+  if (!ART_PACK || !ART_PACK.uiIcons || !iconId) return null;
+  return ART_PACK.uiIcons[iconId] || null;
+}
+
+function getArtPackPickupSpec(pickupId) {
+  if (!ART_PACK || !ART_PACK.pickups || !pickupId) return null;
+  return ART_PACK.pickups[pickupId] || null;
+}
+
+function getArtPackPromptSpec(promptId) {
+  if (!ART_PACK || !ART_PACK.worldPrompts || !promptId) return null;
+  return ART_PACK.worldPrompts[promptId] || null;
 }
 
 function createComponent(typeId, overrides = {}) {
@@ -203,6 +421,43 @@ function createLockedDoor(overrides = {}) {
   if (!door.state) {
     door.state = door.locked === false ? "OPEN" : "LOCKED";
   }
+
+  const width = Number(door.w);
+  const height = Number(door.h);
+  const safeWidth = Number.isFinite(width) ? Math.max(1, width) : 1;
+  const safeHeight = Number.isFinite(height) ? Math.max(1, height) : 1;
+
+  if (door.slideAxis !== "x" && door.slideAxis !== "y") {
+    // Slide along the door's long side.
+    door.slideAxis = safeWidth >= safeHeight ? "x" : "y";
+  }
+
+  if (door.motionType !== "split" && door.motionType !== "single") {
+    door.motionType = Math.max(safeWidth, safeHeight) >= 96 ? "split" : "single";
+  }
+
+  const progress = Number(door.openProgress);
+  const fallbackProgress = (door.state === "OPEN" || door.locked === false) ? 1 : 0;
+  if (Number.isFinite(progress)) {
+    door.openProgress = Math.max(0, Math.min(1, progress));
+  } else {
+    door.openProgress = fallbackProgress;
+  }
+
+  const openDuration = Number(door.openDuration);
+  if (!Number.isFinite(openDuration) || openDuration <= 0) {
+    door.openDuration = door.motionType === "split" ? 0.36 : 0.24;
+  }
+
+  if (door.slideDirection !== "left" && door.slideDirection !== "right" && door.slideDirection !== "up" && door.slideDirection !== "down") {
+    const direction = Number(door.slideDirection);
+    if (Number.isFinite(direction) && direction !== 0) {
+      door.slideDirection = direction > 0 ? 1 : -1;
+    } else {
+      door.slideDirection = "auto";
+    }
+  }
+
   return door;
 }
 

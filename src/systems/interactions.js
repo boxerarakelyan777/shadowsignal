@@ -123,7 +123,7 @@ function getInteraction(player, level, state) {
     const locked = objectiveRequired && !state.terminalComplete;
     const prompt = locked
       ? "Exit locked: Finish objective first"
-      : "E: Exit";
+      : "E: Extract";
     addCandidate(level.exitZone, {
       actionId: locked ? "exit-locked" : "exit",
       type: "press",
@@ -204,6 +204,7 @@ function performInteraction(interaction, player, level, state) {
     if (level.lockedDoor?.locked !== false && hasKeycard) {
       level.lockedDoor.locked = false;
       level.lockedDoor.state = "OPEN";
+      level.lockedDoor.openProgress = 0;
       if (Array.isArray(level.walls)) {
         level.walls = level.walls.filter(w => !rectMatches(w, level.lockedDoor));
       }
@@ -230,7 +231,7 @@ function performInteraction(interaction, player, level, state) {
   if (actionId === "exit") {
     const objectiveRequired = !!level?.terminal;
     if (state.status === "playing" && (!objectiveRequired || state.terminalComplete)) {
-      state.status = "won";
+      state.pendingExtraction = true;
     }
   }
 }

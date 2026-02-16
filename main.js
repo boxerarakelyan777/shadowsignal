@@ -2,7 +2,7 @@ const gameEngine = new GameEngine({ debugging: false });
 const ASSET_MANAGER = new AssetManager();
 const LEVEL_CATALOG = [
   { id: "prototype", name: "Prototype Facility", data: PROTOTYPE_LEVEL },
-  { id: "tutorial", name: "Tutorial Maze", data: FIRST_LEVEL },
+  { id: "tutorial", name: "Training Facility", data: FIRST_LEVEL },
   { id: "test", name: "Test Sandbox", data: TEST_LEVEL },
 ];
 const DEFAULT_LEVEL_INDEX = 0;
@@ -21,11 +21,18 @@ const STATE = {
   terminalState: "INACTIVE",
   terminalProgress: 0,
   playerState: "NORMAL",
+  playerExtracted: false,
   activeHideSpot: null,
   noise: null,
   noiseEvents: [],
   rockProjectiles: [],
   noiseEventSeq: 0,
+  throwCharge: 1,
+  activeInteraction: null,
+  vfxEvents: [],
+  vfxEventSeq: 0,
+  pendingExtraction: false,
+  extractionFx: null,
   debug: false,
   uiPrompt: "",
   message: "",
@@ -41,6 +48,12 @@ const STATE = {
 //downloading sprites
 ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_walk.png");
 ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_walk.png");
+if (typeof listArtPackSpritePaths === "function") {
+  const artPackPaths = listArtPackSpritePaths();
+  for (const path of artPackPaths) {
+    ASSET_MANAGER.queueDownload(path);
+  }
+}
 
 ASSET_MANAGER.downloadAll(() => {
   // Backround music setup
@@ -118,7 +131,7 @@ ASSET_MANAGER.downloadAll(() => {
   }
 
 
-  STATE.input = new Input(gameEngine);
+  STATE.input = gameEngine.input || new Input(gameEngine);
   loadLevelSession(DEFAULT_LEVEL_INDEX, "splash");
 
   gameEngine.start();
@@ -143,6 +156,7 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   STATE.menuIndex = clamp(Number(STATE.menuIndex) || 0, 0, 1);
   STATE.status = initialStatus;
   STATE.playerState = "NORMAL";
+  STATE.playerExtracted = false;
   STATE.hasKeycard = false;
   STATE.objectiveComplete = false;
   STATE.terminalComplete = false;
@@ -153,19 +167,35 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   STATE.noiseEvents = [];
   STATE.rockProjectiles = [];
   STATE.noiseEventSeq = 0;
+  STATE.throwCharge = 1;
+  STATE.activeInteraction = null;
+  STATE.vfxEvents = [];
+  STATE.vfxEventSeq = 0;
+  STATE.pendingExtraction = false;
+  STATE.extractionFx = null;
   STATE.uiPrompt = "";
   STATE.message = "";
   STATE.messageTimer = 0;
+  STATE.input = gameEngine.input || STATE.input || new Input(gameEngine);
   gameEngine.click = null;
+  gameEngine.keys = {};
+  if (STATE.input) STATE.input.previousKeys = {};
 
   const playerSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_walk.png");
   const guardSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_walk.png");
+  const artPackAssets = {};
+  if (typeof listArtPackSpritePaths === "function") {
+    for (const path of listArtPackSpritePaths()) {
+      const asset = ASSET_MANAGER.getAsset(path);
+      if (asset) artPackAssets[path] = asset;
+    }
+  }
   const player = new Player(gameEngine, level, STATE, playerSprite);
   const guards = guardConfigs.map(
     (guardConfig, index) =>
       new Guard(gameEngine, level, STATE, player, guardConfig, index, guardSprite)
   );
-  const levelRenderer = new LevelRenderer(gameEngine, level, STATE);
+  const levelRenderer = new LevelRenderer(gameEngine, level, STATE, artPackAssets);
   const controller = new GameController(gameEngine, STATE, level, player, {
     scheduleLevelLoad,
     levelCatalog: LEVEL_CATALOG,

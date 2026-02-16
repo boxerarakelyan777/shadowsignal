@@ -32,7 +32,7 @@ const PROTOTYPE_LEVEL = {
   lockedDoor: PROTOTYPE_LOCKED_DOOR,
 
   hideSpots: [
-    createHideSpot({ x: 2600, y: 560, w: 50, h: 50 }),
+    createHideSpot({ x: 2593, y: 553, w: 64, h: 64 }),
   ],
 
   walls: [

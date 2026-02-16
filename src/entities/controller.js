@@ -12,7 +12,9 @@ class GameController {
     this.lastInteractionActionId = null;
     this.lastInteractionTarget = null;
     this.lastInteractionType = null;
+    this.interactHeld = false;
     this.throwCooldown = 0;
+    this.extractionDuration = 1.45;
     this.keycardSpawn = state.keycardSpawn
       ? { ...state.keycardSpawn }
       : (level.keycard ? { ...level.keycard } : null);
@@ -26,8 +28,12 @@ class GameController {
     this.noiseTTL = this._num(rockDefaults.noiseTTL, 0.7);
     this.throwCooldownDuration = this._num(rockDefaults.cooldown, 0.45);
     this.noiseEventSeq = this._num(state.noiseEventSeq, 0);
+    this.vfxEventSeq = this._num(state.vfxEventSeq, 0);
 
     if (!Array.isArray(this.state.rockProjectiles)) this.state.rockProjectiles = [];
+    if (!Array.isArray(this.state.vfxEvents)) this.state.vfxEvents = [];
+    this.state.throwCharge = clamp(this._num(this.state.throwCharge, 1), 0, 1);
+    if (!this.state.activeInteraction) this.state.activeInteraction = null;
 
     this.levelCatalog = Array.isArray(options.levelCatalog) ? options.levelCatalog : [];
     this.scheduleLevelLoad =
@@ -37,13 +43,14 @@ class GameController {
   update() {
     const input = this.state.input;
     if (!input) return;
+    const interact = this._readInteract(input);
 
     if (input.justPressed("g")) {
       this.state.debug = !this.state.debug;
     }
 
     if (this.state.status === "loading") {
-      this.state.uiPrompt = "";
+      this._clearGameplayPrompt();
       this.state.message = "Loading level...";
       this.state.messageTimer = 0;
       this.game.click = null;
@@ -52,6 +59,7 @@ class GameController {
     }
 
     if (this.state.status === "splash") {
+      this._clearGameplayPrompt();
       if (this._anyInputPressed(input)) {
         this.state.status = "menu";
         this.state.menuIndex = 0;
@@ -61,6 +69,7 @@ class GameController {
     }
 
     if (this.state.status === "menu") {
+      this._clearGameplayPrompt();
       const menuOptionsCount = 2;
       this.state.menuIndex = clamp(Number(this.state.menuIndex) || 0, 0, 1);
       this._updateMenuSelectionFromMouse();
@@ -83,6 +92,7 @@ class GameController {
     }
 
     if (this.state.status === "level_select") {
+      this._clearGameplayPrompt();
       this._updateLevelSelectionFromMouse();
 
       const clickedLevelIndex = this._consumeClickSelection(this.state.levelOptionRects);
@@ -109,6 +119,7 @@ class GameController {
     }
 
     if (this.state.status === "credits") {
+      this._clearGameplayPrompt();
       if (this._isConfirmPressed(input) || this._isPauseTogglePressed(input)) {
         this.state.status = "menu";
       }
@@ -117,73 +128,79 @@ class GameController {
     }
 
     if (this.state.status === "paused") {
-      if (this._isPauseTogglePressed(input) || input.justPressed("p")) {
-        this.state.status = "playing";
+      this._updateFocusSelectionFromMouse();
+      const clickedFocusIndex = this._consumeClickSelection(this.state.focusOptionRects);
+      if (clickedFocusIndex >= 0) {
+        this._activateFocusOption(clickedFocusIndex);
+      } else if (this._isPauseTogglePressed(input) || input.justPressed("p")) {
+        this._handleFocusAction("resume");
       } else if (input.justPressed("r")) {
-        this.resetLevel();
+        this._handleFocusAction("retry");
       } else if (input.justPressed("l")) {
-        this.state.status = "level_select";
+        this._handleFocusAction("levels");
       } else if (input.justPressed("t")) {
-        this.state.status = "splash";
+        this._handleFocusAction("title");
       } else if (input.justPressed("c")) {
-        this.state.status = "credits";
+        this._handleFocusAction("credits");
       }
-      this.state.uiPrompt = "";
-      this.game.click = null;
+      this._clearGameplayPrompt();
       input.update();
       return;
     }
 
     if (this.state.status === "won") {
-      if (input.justPressed("n")) {
-        const nextLevelIndex = this.state.levelIndex + 1;
-        if (nextLevelIndex < this._levelCount()) {
-          this._queueLevelLoad(nextLevelIndex, "playing");
-        } else {
-          this.state.status = "credits";
-        }
+      this._updateFocusSelectionFromMouse();
+      const clickedFocusIndex = this._consumeClickSelection(this.state.focusOptionRects);
+      if (clickedFocusIndex >= 0) {
+        this._activateFocusOption(clickedFocusIndex);
+      } else if (input.justPressed("n")) {
+        this._handleFocusAction("next");
       } else if (input.justPressed("r")) {
-        this.resetLevel();
+        this._handleFocusAction("retry");
       } else if (input.justPressed("l")) {
-        this.state.status = "level_select";
+        this._handleFocusAction("levels");
       } else if (input.justPressed("t")) {
-        this.state.status = "splash";
+        this._handleFocusAction("title");
       }
-      this.state.uiPrompt = "";
-      this.game.click = null;
+      this._clearGameplayPrompt();
+      input.update();
+      return;
+    }
+
+    if (this.state.status === "extracting") {
+      this._updateExtractionSequence(this.game.clockTick);
+      this._clearGameplayPrompt();
       input.update();
       return;
     }
 
     if (this.state.status === "lost") {
-      if (input.justPressed("r")) {
-        this.resetLevel();
+      this._updateFocusSelectionFromMouse();
+      const clickedFocusIndex = this._consumeClickSelection(this.state.focusOptionRects);
+      if (clickedFocusIndex >= 0) {
+        this._activateFocusOption(clickedFocusIndex);
+      } else if (input.justPressed("r")) {
+        this._handleFocusAction("retry");
       } else if (input.justPressed("l")) {
-        this.state.status = "level_select";
+        this._handleFocusAction("levels");
       } else if (input.justPressed("t")) {
-        this.state.status = "splash";
+        this._handleFocusAction("title");
       }
-      this.state.uiPrompt = "";
-      this.game.click = null;
+      this._clearGameplayPrompt();
       input.update();
       return;
     }
 
     if (this.state.status !== "playing") {
+      this._clearGameplayPrompt();
       input.update();
       return;
     }
 
     if (this._isPauseTogglePressed(input)) {
       this.state.status = "paused";
-      this.state.uiPrompt = "";
+      this._clearGameplayPrompt();
       this.game.click = null;
-      input.update();
-      return;
-    }
-
-    if (input.justPressed("r")) {
-      this.resetLevel();
       input.update();
       return;
     }
@@ -197,8 +214,10 @@ class GameController {
 
     const dt = this.game.clockTick;
     this.throwCooldown = Math.max(0, this.throwCooldown - dt);
+    this.state.throwCharge = this._computeThrowCharge();
     this._updateNoiseEvents(dt);
     this._updateRockProjectiles(dt);
+    this._updateVfxEvents(dt);
 
     if (this.state.messageTimer > 0) {
       this.state.messageTimer -= dt;
@@ -243,12 +262,12 @@ class GameController {
     }
 
     if (isHold) {
-      if (input.isDown("e")) {
+      if (interact.down) {
         this.holdTime += dt;
         const duration = interaction.holdDuration || 0;
         const progress = duration > 0 ? clamp(this.holdTime / duration, 0, 1) : 0;
         if (progress >= 1) {
-          performInteraction(interaction, this.player, this.level, this.state);
+          this._performInteraction(interaction);
           this.holdTime = 0;
         } else {
           this.state.terminalState = "DOWNLOADING";
@@ -261,8 +280,8 @@ class GameController {
           this.state.terminalProgress = 0;
         }
       }
-    } else if (interaction && input.justPressed("e")) {
-      performInteraction(interaction, this.player, this.level, this.state);
+    } else if (interaction && interact.pressed) {
+      this._performInteraction(interaction);
     }
 
     let prompt = interaction?.prompt || "";
@@ -275,22 +294,12 @@ class GameController {
       }
     }
     this.state.uiPrompt = prompt;
+    this.state.activeInteraction = this._buildActiveInteraction(interaction);
 
     this.holdInteraction = interaction;
     this.lastInteractionActionId = interaction?.actionId || null;
     this.lastInteractionTarget = interaction?.target || null;
     this.lastInteractionType = interaction?.type || null;
-
-    const inExitZone =
-      this.level.exitZone && rectsIntersect(this.player, this.level.exitZone);
-    if (inExitZone && this.state.status === "playing") {
-      if (this.state.terminalComplete) {
-        this.state.status = "won";
-      } else if (this.state.messageTimer <= 0) {
-        this.state.message = "Finish the objective first.";
-        this.state.messageTimer = 1.5;
-      }
-    }
 
     input.update();
   }
@@ -302,6 +311,7 @@ class GameController {
   resetLevel() {
     this.state.status = "playing";
     this.state.playerState = "NORMAL";
+    this.state.playerExtracted = false;
     this.player.hidden = false;
     this.player.x = this.level.playerSpawn.x;
     this.player.y = this.level.playerSpawn.y;
@@ -313,25 +323,34 @@ class GameController {
     this.state.terminalState = "INACTIVE";
     this.state.terminalProgress = 0;
 
-    this.state.uiPrompt = "";
+    this._clearGameplayPrompt();
     this.state.message = "";
     this.state.messageTimer = 0;
     this.state.noise = null;
     this.state.noiseEvents = [];
     this.state.rockProjectiles = [];
     this.state.noiseEventSeq = 0;
+    this.state.throwCharge = 1;
+    this.state.vfxEvents = [];
+    this.state.vfxEventSeq = 0;
+    this.state.pendingExtraction = false;
+    this.state.extractionFx = null;
     this.state.activeHideSpot = null;
     this.state.lastCaptureByGuardId = null;
     this.state.debugInfo = { guards: [] };
     this.game.click = null;
+    this.game.keys = {};
+    if (this.state.input) this.state.input.previousKeys = {};
 
     this.holdTime = 0;
     this.holdInteraction = null;
     this.lastInteractionActionId = null;
     this.lastInteractionTarget = null;
     this.lastInteractionType = null;
+    this.interactHeld = false;
     this.throwCooldown = 0;
     this.noiseEventSeq = 0;
+    this.vfxEventSeq = 0;
 
     if (this.keycardSpawn) {
       this.level.keycard = { ...this.keycardSpawn };
@@ -343,6 +362,7 @@ class GameController {
     if (this.level.lockedDoor) {
       this.level.lockedDoor.locked = true;
       this.level.lockedDoor.state = "LOCKED";
+      this.level.lockedDoor.openProgress = 0;
       if (!this.level.walls.some(w => this._rectMatches(w, this.level.lockedDoor))) {
         this.level.walls.push(this.level.lockedDoor);
       }
@@ -409,6 +429,11 @@ class GameController {
     }
   }
 
+  _updateFocusSelectionFromMouse() {
+    const hoveredIndex = this._hitTestSelection(this.state.focusOptionRects, this.game.mouse);
+    this.state.focusIndex = hoveredIndex >= 0 ? hoveredIndex : -1;
+  }
+
   _consumeClickSelection(optionRects) {
     if (!this.game.click) return -1;
     const clickPoint = this.game.click;
@@ -446,15 +471,62 @@ class GameController {
     }
   }
 
+  _activateFocusOption(index) {
+    const options = Array.isArray(this.state.focusOptionRects) ? this.state.focusOptionRects : [];
+    if (index < 0 || index >= options.length) return;
+    const actionId = options[index]?.actionId || "";
+    this._handleFocusAction(actionId);
+  }
+
+  _handleFocusAction(actionId) {
+    if (actionId === "resume") {
+      this.state.status = "playing";
+      return;
+    }
+
+    if (actionId === "retry") {
+      this.resetLevel();
+      return;
+    }
+
+    if (actionId === "levels") {
+      this.state.status = "level_select";
+      return;
+    }
+
+    if (actionId === "title") {
+      this.state.status = "splash";
+      return;
+    }
+
+    if (actionId === "credits") {
+      this.state.status = "credits";
+      return;
+    }
+
+    if (actionId === "next") {
+      const nextLevelIndex = this.state.levelIndex + 1;
+      if (nextLevelIndex < this._levelCount()) {
+        this._queueLevelLoad(nextLevelIndex, "playing");
+      } else {
+        this.state.status = "credits";
+      }
+    }
+  }
+
   _queueLevelLoad(levelIndex, initialStatus) {
     const levelCount = this._levelCount();
     if (!levelCount) return;
 
     const safeIndex = clamp(levelIndex, 0, levelCount - 1);
     this.state.selectedLevelIndex = safeIndex;
-    this.state.uiPrompt = "";
+    this._clearGameplayPrompt();
     this.state.message = "";
     this.state.messageTimer = 0;
+    this.state.pendingExtraction = false;
+    this.state.extractionFx = null;
+    this.state.playerExtracted = false;
+    this.interactHeld = false;
     this.game.click = null;
 
     if (this.scheduleLevelLoad) {
@@ -490,6 +562,7 @@ class GameController {
 
     this._spawnRockProjectile(playerCenter, target);
     this.throwCooldown = this.throwCooldownDuration;
+    this.state.throwCharge = this._computeThrowCharge();
   }
 
   _spawnRockProjectile(start, target) {
@@ -561,6 +634,8 @@ class GameController {
     if (!Array.isArray(this.state.noiseEvents)) this.state.noiseEvents = [];
     this.state.noiseEvents.push(noiseEvent);
     this.state.noise = noiseEvent;
+    this._spawnVfxEvent("hit", x, y, { scale: 0.95, alpha: 0.98 });
+    this._spawnVfxEvent("dust", x, y + 4, { scale: 1.06, alpha: 0.9 });
   }
 
   _updateNoiseEvents(dt) {
@@ -579,6 +654,183 @@ class GameController {
 
     this.state.noiseEvents = this.state.noiseEvents.filter(e => e.ttl > 0);
     this.state.noise = this.state.noiseEvents[this.state.noiseEvents.length - 1] || null;
+  }
+
+  _updateVfxEvents(dt) {
+    if (!Array.isArray(this.state.vfxEvents) || !this.state.vfxEvents.length) {
+      this.state.vfxEvents = [];
+      return;
+    }
+
+    for (const event of this.state.vfxEvents) {
+      if (!event) continue;
+      event.elapsed = this._num(event.elapsed, 0) + dt;
+    }
+
+    this.state.vfxEvents = this.state.vfxEvents.filter(event => {
+      if (!event) return false;
+      const duration = Math.max(0.01, this._num(event.duration, 0.2));
+      if (event.loop) return true;
+      return event.elapsed < duration;
+    });
+  }
+
+  _spawnVfxEvent(typeId, x, y, options = {}) {
+    const spec = typeof getArtPackVfxSpec === "function"
+      ? getArtPackVfxSpec(typeId)
+      : null;
+    if (!spec) return;
+
+    this.vfxEventSeq += 1;
+    this.state.vfxEventSeq = this.vfxEventSeq;
+
+    const frames = Math.max(1, Math.round(this._num(spec.frames, 1)));
+    const fps = Math.max(1, this._num(spec.fps, 12));
+    const duration = frames / fps;
+
+    if (!Array.isArray(this.state.vfxEvents)) this.state.vfxEvents = [];
+    this.state.vfxEvents.push({
+      id: this.vfxEventSeq,
+      type: typeId,
+      x,
+      y,
+      elapsed: 0,
+      duration,
+      frames,
+      fps,
+      frameW: Math.max(1, this._num(spec.frameW, 64)),
+      frameH: Math.max(1, this._num(spec.frameH, 64)),
+      loop: !!spec.loop,
+      scale: Math.max(0.2, this._num(options.scale, 1)),
+      alpha: clamp(this._num(options.alpha, 1), 0, 1),
+    });
+  }
+
+  _performInteraction(interaction) {
+    if (!interaction) return;
+
+    const actionId = interaction.actionId || "";
+    const hadKeycard = !!this.state.hasKeycard;
+    const hadTerminalComplete = !!this.state.terminalComplete;
+    const targetCenter = this._rectCenter(interaction.target);
+
+    performInteraction(interaction, this.player, this.level, this.state);
+
+    if (actionId === "pickup-keycard" && !hadKeycard && this.state.hasKeycard && targetCenter) {
+      this._spawnVfxEvent("sparkle", targetCenter.x, targetCenter.y - 6, { scale: 1.08, alpha: 0.98 });
+    } else if (actionId === "unlock-door") {
+      if (this.level?.lockedDoor) this.level.lockedDoor.openProgress = 0;
+      if (targetCenter) {
+        this._spawnVfxEvent("dust", targetCenter.x, targetCenter.y + 6, { scale: 1.1, alpha: 0.8 });
+        this._spawnVfxEvent("hit", targetCenter.x, targetCenter.y, { scale: 0.78, alpha: 0.75 });
+      }
+    } else if (actionId === "use-terminal" && !hadTerminalComplete && this.state.terminalComplete && targetCenter) {
+      this._spawnVfxEvent("hit", targetCenter.x, targetCenter.y - 4, { scale: 0.74, alpha: 0.8 });
+    } else if (actionId === "exit" && this.state.pendingExtraction) {
+      this.state.pendingExtraction = false;
+      this._startExtractionSequence(targetCenter || this._playerCenter());
+    }
+  }
+
+  _startExtractionSequence(center) {
+    if (!center) return;
+    if (this.state.status !== "playing") return;
+
+    this.player.x = center.x - this.player.w / 2;
+    this.player.y = center.y - this.player.h / 2;
+    this.player.hidden = false;
+
+    this.state.playerState = "EXTRACTING";
+    this.state.playerExtracted = false;
+    this.state.status = "extracting";
+    this.state.pendingExtraction = false;
+    this.state.extractionFx = {
+      x: center.x,
+      y: center.y,
+      elapsed: 0,
+      duration: this.extractionDuration,
+      lift: 132,
+      spinTurns: 4.8,
+    };
+    this._clearGameplayPrompt();
+  }
+
+  _updateExtractionSequence(dt) {
+    const fx = this.state.extractionFx;
+    if (!fx) {
+      this.state.status = "won";
+      this.state.playerState = "EXTRACTED";
+      this.state.playerExtracted = true;
+      this.player.hidden = true;
+      return;
+    }
+
+    const step = Math.max(0, this._num(dt, 0));
+    fx.elapsed += step;
+    const duration = Math.max(0.01, this._num(fx.duration, this.extractionDuration));
+    if (fx.elapsed >= duration) {
+      this.state.extractionFx = null;
+      this.state.playerState = "EXTRACTED";
+      this.state.playerExtracted = true;
+      this.player.hidden = true;
+      this.state.status = "won";
+    }
+  }
+
+  _rectCenter(rect) {
+    if (
+      !rect ||
+      !Number.isFinite(rect.x) ||
+      !Number.isFinite(rect.y) ||
+      !Number.isFinite(rect.w) ||
+      !Number.isFinite(rect.h)
+    ) {
+      return null;
+    }
+    return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+  }
+
+  _buildActiveInteraction(interaction) {
+    if (!interaction || !interaction.prompt) return null;
+
+    const target = interaction.target;
+    let worldX = null;
+    let worldY = null;
+    if (
+      target &&
+      Number.isFinite(target.x) &&
+      Number.isFinite(target.y) &&
+      Number.isFinite(target.w) &&
+      Number.isFinite(target.h)
+    ) {
+      worldX = target.x + target.w / 2;
+      worldY = target.y + target.h / 2;
+    }
+
+    return {
+      actionId: interaction.actionId || null,
+      type: interaction.type || null,
+      prompt: interaction.prompt || "",
+      worldX,
+      worldY,
+    };
+  }
+
+  _clearGameplayPrompt() {
+    this.state.uiPrompt = "";
+    this.state.activeInteraction = null;
+  }
+
+  _readInteract(input) {
+    const down = !!input?.isDown("e");
+    const pressed = down && !this.interactHeld;
+    this.interactHeld = down;
+    return { down, pressed };
+  }
+
+  _computeThrowCharge() {
+    if (this.throwCooldownDuration <= 0) return 1;
+    return clamp(1 - this.throwCooldown / this.throwCooldownDuration, 0, 1);
   }
 
   _playerCenter() {

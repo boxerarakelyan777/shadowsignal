@@ -18,7 +18,7 @@ const TUNING = {
     noiseRadius: 120,
     impactVisualRadius: 14,
     noiseTTL: 0.7,
-    cooldown: 0.45,
+    cooldown: 1.1,
   },
   los: {
     epsilon: 1e-6,

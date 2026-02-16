@@ -21,8 +21,8 @@ const TEST_LEVEL = {
   exitZone: createExitZone({ x: 930, y: 700, w: 70, h: 50 }),
 
   hideSpots: [
-    createHideSpot({ x: 220, y: 520, w: 50, h: 50 }),
-    createHideSpot({ x: 720, y: 560, w: 50, h: 50 }),
+    createHideSpot({ x: 213, y: 513, w: 64, h: 64 }),
+    createHideSpot({ x: 713, y: 553, w: 64, h: 64 }),
   ],
 
   // Keep only borders for now (so patrol can't get blocked)

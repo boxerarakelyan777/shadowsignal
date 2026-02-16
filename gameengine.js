@@ -29,6 +29,7 @@ class GameEngine {
             zoom: 0.75 // zoom out (1 = normal  )
         };
         this.pendingSceneAction = null;
+        this.overlayDrawFns = [];
 
     };
 
@@ -101,8 +102,26 @@ class GameEngine {
             }
         );
 
-        this.ctx.canvas.addEventListener("keydown", event => this.keys[event.key] = true);
-        this.ctx.canvas.addEventListener("keyup", event => this.keys[event.key] = false);
+        const clearKeys = () => {
+            this.keys = {};
+            if (this.input) this.input.previousKeys = {};
+        };
+
+        const handleKeyDown = event => {
+            this.keys[event.key] = true;
+        };
+
+        const handleKeyUp = event => {
+            this.keys[event.key] = false;
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("keyup", handleKeyUp);
+        window.addEventListener("blur", clearKeys);
+        this.ctx.canvas.addEventListener("blur", clearKeys);
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) clearKeys();
+        });
     };
 
     addEntity(entity) {
@@ -112,6 +131,7 @@ class GameEngine {
     draw() {
         const ctx = this.ctx;
         const cam = this.camera;
+        this.overlayDrawFns = [];
 
         // fill the canvas 
         // TODO: Need to make transparent to allow image backgrounds
@@ -121,6 +141,10 @@ class GameEngine {
         ctx.save();
         ctx.scale(cam.zoom, cam.zoom);
         ctx.translate(-cam.x, -cam.y);
+        ctx.imageSmoothingEnabled = true;
+        if ("imageSmoothingQuality" in ctx) {
+            ctx.imageSmoothingQuality = "high";
+        }
 
         // Draw latest things first 
         for (let i = this.entities.length - 1; i >= 0; i--) {
@@ -128,6 +152,14 @@ class GameEngine {
         }
 
         ctx.restore();
+
+        if (Array.isArray(this.overlayDrawFns) && this.overlayDrawFns.length) {
+            for (const drawOverlay of this.overlayDrawFns) {
+                if (typeof drawOverlay === "function") {
+                    drawOverlay(ctx, this);
+                }
+            }
+        }
     };
 
     update() {

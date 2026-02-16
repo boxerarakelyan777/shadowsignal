@@ -1,0 +1,220 @@
+{
+  "characters": {
+    "player_walk": {
+      "path": "assets/sprites/characters/player_walk.png",
+      "sheetSize": [
+        512,
+        512
+      ],
+      "frameSize": [
+        64,
+        64
+      ],
+      "cols": 8,
+      "rows": 8
+    },
+    "guard_walk": {
+      "path": "assets/sprites/characters/guard_walk.png",
+      "sheetSize": [
+        512,
+        512
+      ],
+      "frameSize": [
+        64,
+        64
+      ],
+      "cols": 8,
+      "rows": 8
+    },
+    "directionRowOrder": [
+      "NW",
+      "W",
+      "SW",
+      "S",
+      "SE",
+      "E",
+      "NE",
+      "N"
+    ],
+    "idleColumn": 0
+  },
+  "ui_icons": {
+    "interact": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/interact_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "objective": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/objective_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "keycard": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/keycard_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "battery": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/battery_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "pause": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/pause_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "warning": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/warning_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "door_locked": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/door_locked_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "door_unlocked": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/door_unlocked_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "eye": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/eye_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "noise": {
+      "path": "assets/sprites/shadowsignal_v2/ui/icons/noise_32_strip.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    }
+  },
+  "prompt": {
+    "interact": {
+      "path": "assets/sprites/shadowsignal_v2/prompts/world_prompt_interact_64.png",
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 3,
+      "fps": 8,
+      "loop": true
+    }
+  },
+  "pickups": {
+    "keycard": {
+      "path": "assets/sprites/shadowsignal_v2/pickups/pickup_keycard_32.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "datachip": {
+      "path": "assets/sprites/shadowsignal_v2/pickups/pickup_datachip_32.png",
+      "frameSize": [
+        32,
+        32
+      ],
+      "frames": 4,
+      "fps": 8,
+      "loop": true
+    }
+  },
+  "vfx": {
+    "sparkle": {
+      "path": "assets/sprites/shadowsignal_v2/vfx/vfx_sparkle_64.png",
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    "hit": {
+      "path": "assets/sprites/shadowsignal_v2/vfx/vfx_hit_64.png",
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 5,
+      "fps": 16,
+      "loop": false
+    },
+    "dust": {
+      "path": "assets/sprites/shadowsignal_v2/vfx/vfx_dust_64.png",
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 6,
+      "fps": 12,
+      "loop": false
+    }
+  },
+  "world": {
+    "floor_tile_64": "assets/sprites/shadowsignal_v2/world/floor/floor_tile_64.png",
+    "wall_tile_64": "assets/sprites/shadowsignal_v2/world/walls/wall_tile_64.png",
+    "door_locked_tile_64": "assets/sprites/shadowsignal_v2/world/doors/door_locked_tile_64.png",
+    "door_open_track_tile_64": "assets/sprites/shadowsignal_v2/world/doors/door_open_track_tile_64.png",
+    "hide_pad_idle_64": "assets/sprites/shadowsignal_v2/world/hide/hide_pad_idle_64.png",
+    "hide_pad_occupied_64": "assets/sprites/shadowsignal_v2/world/hide/hide_pad_occupied_64.png",
+    "extract_pad_64": "assets/sprites/shadowsignal_v2/world/exit/extract_pad_64.png",
+    "terminal_idle_80x60": "assets/sprites/shadowsignal_v2/world/terminal/terminal_idle_80x60.png",
+    "terminal_complete_80x60": "assets/sprites/shadowsignal_v2/world/terminal/terminal_complete_80x60.png"
+  }
+}

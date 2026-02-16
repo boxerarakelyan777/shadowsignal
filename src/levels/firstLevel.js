@@ -1,195 +1,133 @@
-// Tutorial Level src/levels/firstLevel.js
-const FIRST_LEVEL_GUARD = createGuard({
-  x: 1400,
-  y: 600,
-  // Waypoints in open space (won't hit walls)
-  waypoints: [
-    { x: 1350, y: 420 },
-    { x: 1350, y: 780 },
-  ],
+// Mission Level src/levels/firstLevel.js
+const FIRST_LEVEL_DOOR = createLockedDoor({
+  x: 1880,
+  y: 620,
+  w: 36,
+  h: 180,
+  trigger: { x: 1820, y: 600, w: 116, h: 220 },
+  motionType: "split",
+  slideAxis: "y",
+  openDuration: 0.34,
 });
 
+const FIRST_LEVEL_GUARDS = [
+  createGuard({
+    name: "Corridor Guard",
+    x: 980,
+    y: 700,
+    patrolSpeed: 88,
+    visionRange: 285,
+    fovDeg: 76,
+    waypoints: [
+      { x: 900, y: 700 },
+      { x: 1500, y: 700 },
+      { x: 1500, y: 760 },
+      { x: 900, y: 760 },
+    ],
+  }),
+  createGuard({
+    name: "Security Guard",
+    x: 2240,
+    y: 900,
+    patrolSpeed: 92,
+    visionRange: 300,
+    fovDeg: 80,
+    waypoints: [
+      { x: 2140, y: 900 },
+      { x: 2740, y: 900 },
+      { x: 2740, y: 560 },
+      { x: 2140, y: 560 },
+    ],
+  }),
+  createGuard({
+    name: "Terminal Guard",
+    x: 3060,
+    y: 620,
+    patrolSpeed: 84,
+    visionRange: 250,
+    fovDeg: 70,
+    waypoints: [
+      { x: 2980, y: 620 },
+      { x: 3320, y: 620 },
+      { x: 3320, y: 520 },
+      { x: 2980, y: 520 },
+    ],
+  }),
+];
+
 const FIRST_LEVEL = {
-  width: 3200,
-  height: 1200,
+  width: 3400,
+  height: 1400,
   floorVariant: "default",
 
-  playerSpawn: { x: 80, y: 400 },
+  playerSpawn: { x: 120, y: 700 },
 
-  exitZone: createExitZone({ x: 3000, y: 500, w: 150, h: 200 }),
-
-  keycard: createKeycard({ x: 2100, y: 560 }),
+  // Objective chain: keycard -> secured door -> terminal -> extraction.
+  keycard: createKeycard({ x: 1320, y: 360 }),
+  lockedDoor: FIRST_LEVEL_DOOR,
+  terminal: createTerminal({ x: 3260, y: 560 }),
+  exitZone: createExitZone({ x: 3210, y: 860, w: 140, h: 120 }),
 
   hideSpots: [
-    createHideSpot({ x: 80, y: 180, w: 50, h: 50 }),
+    createHideSpot({ x: 165, y: 895, w: 64, h: 64 }),
+    createHideSpot({ x: 1175, y: 865, w: 64, h: 64 }),
+    createHideSpot({ x: 2055, y: 895, w: 64, h: 64 }),
+    createHideSpot({ x: 2755, y: 475, w: 64, h: 64 }),
+    createHideSpot({ x: 3115, y: 875, w: 64, h: 64 }),
   ],
 
-  // TODO: Add signage / text entity to all areas
-  // tutorialZones: [
-  //   { x: 200, y: 0, w: 800, h: 1200, label: "MOVE" },
-  //   { x: 800, y: 0, w: 600, h: 1200, label: "HIDE" },
-  //   { x: 1400, y: 0, w: 600, h: 1200, label: "VISION" },
-  // ],
+  walls: [
+    ...createOuterWalls(3400, 1400, 24),
+    ...createWalls([
+      // Spawn chamber.
+      { x: 24, y: 360, w: 760, h: 24 },
+      { x: 24, y: 1010, w: 760, h: 24 },
+      { x: 760, y: 360, w: 24, h: 220 },
+      { x: 760, y: 816, w: 24, h: 218 },
+      { x: 260, y: 650, w: 130, h: 110 },
+      { x: 500, y: 470, w: 100, h: 90 },
 
-  walls: createWalls([
-    // Outer bounds
-    { x: 0, y: 120, w: 3160, h: 40 }, // top
-    { x: 0, y: 1160, w: 3160, h: 40 }, // bottom
-    { x: 0, y: 0, w: 40, h: 1160 }, // left
-    { x: 3160, y: 0, w: 40, h: 1160 }, // right
+      // Main corridor.
+      { x: 24, y: 560, w: 1248, h: 24 },
+      { x: 1408, y: 560, w: 472, h: 24 },
+      { x: 24, y: 816, w: 1856, h: 24 },
 
-    // LOS blocker between player and guard
-    { x: 1200, y: 220, w: 60, h: 760 },
+      // Keycard room (upper side access).
+      { x: 1080, y: 220, w: 520, h: 24 },
+      { x: 1080, y: 220, w: 24, h: 340 },
+      { x: 1576, y: 220, w: 24, h: 340 },
+      { x: 1080, y: 536, w: 190, h: 24 },
+      { x: 1410, y: 536, w: 190, h: 24 },
+      { x: 1240, y: 300, w: 70, h: 90 },
+      { x: 1380, y: 360, w: 70, h: 90 },
 
-    // Row 0 (y = 440) cols 2-13
-    { x: 580, y: 340, w: 40, h: 40 },
-    { x: 620, y: 340, w: 40, h: 40 },
-    { x: 660, y: 340, w: 40, h: 40 },
-    { x: 700, y: 340, w: 40, h: 40 },
-    { x: 740, y: 340, w: 40, h: 40 },
-    { x: 780, y: 340, w: 40, h: 40 },
-    { x: 820, y: 340, w: 40, h: 40 },
-    { x: 860, y: 340, w: 40, h: 40 },
-    { x: 900, y: 340, w: 40, h: 40 },
-    { x: 940, y: 340, w: 40, h: 40 },
-    { x: 980, y: 340, w: 40, h: 40 },
-    { x: 1020, y: 340, w: 40, h: 40 },
+      // Door frame caps.
+      { x: 1880, y: 560, w: 36, h: 60 },
+      { x: 1880, y: 800, w: 36, h: 40 },
 
-    // Row 1 (y = 480) cols 5,13
-    { x: 700, y: 380, w: 40, h: 40 },
-    { x: 1020, y: 380, w: 40, h: 40 },
+      // Secure wing shell.
+      { x: 1916, y: 420, w: 1460, h: 24 },
+      { x: 1916, y: 1010, w: 1460, h: 24 },
+      { x: 1916, y: 420, w: 24, h: 200 },
+      { x: 1916, y: 800, w: 24, h: 234 },
 
-    // Row 2 (y = 520) cols 0,1,2,3,5,7,8,9,10,11,13
-    { x: 500, y: 420, w: 40, h: 40 },
-    { x: 540, y: 420, w: 40, h: 40 },
-    { x: 580, y: 420, w: 40, h: 40 },
-    { x: 620, y: 420, w: 40, h: 40 },
-    { x: 700, y: 420, w: 40, h: 40 },
-    { x: 780, y: 420, w: 40, h: 40 },
-    { x: 820, y: 420, w: 40, h: 40 },
-    { x: 860, y: 420, w: 40, h: 40 },
-    { x: 900, y: 420, w: 40, h: 40 },
-    { x: 940, y: 420, w: 40, h: 40 },
-    { x: 1020, y: 420, w: 40, h: 40 },
+      // Secure wing interior cover.
+      { x: 2240, y: 620, w: 220, h: 24 },
+      { x: 2480, y: 780, w: 260, h: 24 },
+      { x: 2660, y: 540, w: 24, h: 220 },
+      { x: 3000, y: 640, w: 24, h: 260 },
+      { x: 2300, y: 900, w: 110, h: 90 },
 
-    // Row 3 (y = 560) cols 0,7,13
-    { x: 500, y: 460, w: 40, h: 40 },
-    { x: 780, y: 460, w: 40, h: 40 },
-    { x: 1020, y: 460, w: 40, h: 40 },
+      // Terminal room with left-side entry.
+      { x: 2860, y: 460, w: 500, h: 24 },
+      { x: 2860, y: 736, w: 500, h: 24 },
+      { x: 2860, y: 460, w: 24, h: 150 },
+      { x: 2860, y: 660, w: 24, h: 100 },
+    ]),
+    // Locked door blocks the center corridor until keycard unlock.
+    FIRST_LEVEL_DOOR,
+  ],
 
-    // Row 4 (y = 600) cols 0,2,3,4,5,6,7,9,10,11,12,13
-    { x: 500, y: 500, w: 40, h: 40 },
-    { x: 580, y: 500, w: 40, h: 40 },
-    { x: 620, y: 500, w: 40, h: 40 },
-    { x: 660, y: 500, w: 40, h: 40 },
-    { x: 700, y: 500, w: 40, h: 40 },
-    { x: 740, y: 500, w: 40, h: 40 },
-    { x: 780, y: 500, w: 40, h: 40 },
-    { x: 860, y: 500, w: 40, h: 40 },
-    { x: 900, y: 500, w: 40, h: 40 },
-    { x: 940, y: 500, w: 40, h: 40 },
-    { x: 980, y: 500, w: 40, h: 40 },
-    { x: 1020, y: 500, w: 40, h: 40 },
-
-    // Row 5 (y = 640) cols 0,2,13
-    { x: 500, y: 540, w: 40, h: 40 },
-    { x: 580, y: 540, w: 40, h: 40 },
-    { x: 1020, y: 540, w: 40, h: 40 },
-
-    // Row 6 (y = 680) cols 0,2,4,5,6,7,8,9,10,11,13
-    { x: 500, y: 580, w: 40, h: 40 },
-    { x: 580, y: 580, w: 40, h: 40 },
-    { x: 660, y: 580, w: 40, h: 40 },
-    { x: 700, y: 580, w: 40, h: 40 },
-    { x: 740, y: 580, w: 40, h: 40 },
-    { x: 780, y: 580, w: 40, h: 40 },
-    { x: 820, y: 580, w: 40, h: 40 },
-    { x: 860, y: 580, w: 40, h: 40 },
-    { x: 900, y: 580, w: 40, h: 40 },
-    { x: 940, y: 580, w: 40, h: 40 },
-    { x: 1020, y: 580, w: 40, h: 40 },
-
-    // Row 7 (y = 720) cols 0,8,13
-    { x: 500, y: 620, w: 40, h: 40 },
-    { x: 820, y: 620, w: 40, h: 40 },
-    { x: 1020, y: 620, w: 40, h: 40 },
-
-    // Row 8 (y = 760) cols 0,1,2,4,6,7,8,9,10,11,13
-    { x: 500, y: 660, w: 40, h: 40 },
-    { x: 540, y: 660, w: 40, h: 40 },
-    { x: 580, y: 660, w: 40, h: 40 },
-    { x: 660, y: 660, w: 40, h: 40 },
-    { x: 740, y: 660, w: 40, h: 40 },
-    { x: 780, y: 660, w: 40, h: 40 },
-    { x: 820, y: 660, w: 40, h: 40 },
-    { x: 860, y: 660, w: 40, h: 40 },
-    { x: 900, y: 660, w: 40, h: 40 },
-    { x: 940, y: 660, w: 40, h: 40 },
-    { x: 1020, y: 660, w: 40, h: 40 },
-
-    // Row 9 (y = 800) cols 0,6,11,13
-    { x: 500, y: 700, w: 40, h: 40 },
-    { x: 740, y: 700, w: 40, h: 40 },
-    { x: 940, y: 700, w: 40, h: 40 },
-    { x: 1020, y: 700, w: 40, h: 40 },
-
-    // Row 10 (y = 840) cols 0,2,3,4,5,6,8,9,10,11,13
-    { x: 500, y: 740, w: 40, h: 40 },
-    { x: 580, y: 740, w: 40, h: 40 },
-    { x: 620, y: 740, w: 40, h: 40 },
-    { x: 660, y: 740, w: 40, h: 40 },
-    { x: 700, y: 740, w: 40, h: 40 },
-    { x: 740, y: 740, w: 40, h: 40 },
-    { x: 820, y: 740, w: 40, h: 40 },
-    { x: 860, y: 740, w: 40, h: 40 },
-    { x: 900, y: 740, w: 40, h: 40 },
-    { x: 940, y: 740, w: 40, h: 40 },
-    { x: 1020, y: 740, w: 40, h: 40 },
-
-    // Row 11 (y = 880) cols 0,8,13
-    { x: 500, y: 780, w: 40, h: 40 },
-    { x: 820, y: 780, w: 40, h: 40 },
-    { x: 1020, y: 780, w: 40, h: 40 },
-
-    // Row 12 (y = 920) cols 0-8 and 10-13
-    { x: 500, y: 820, w: 40, h: 40 },
-    { x: 540, y: 820, w: 40, h: 40 },
-    { x: 580, y: 820, w: 40, h: 40 },
-    { x: 620, y: 820, w: 40, h: 40 },
-    { x: 660, y: 820, w: 40, h: 40 },
-    { x: 700, y: 820, w: 40, h: 40 },
-    { x: 740, y: 820, w: 40, h: 40 },
-    { x: 780, y: 820, w: 40, h: 40 },
-    { x: 820, y: 820, w: 40, h: 40 },
-    { x: 900, y: 820, w: 40, h: 40 },
-    { x: 940, y: 820, w: 40, h: 40 },
-    { x: 980, y: 820, w: 40, h: 40 },
-    { x: 1020, y: 820, w: 40, h: 40 },
-
-    // Row 13 (y = 960) cols 0
-    { x: 500, y: 860, w: 40, h: 40 },
-
-    // Row 14 (y = 1000) cols 0-13
-    { x: 500, y: 900, w: 40, h: 40 },
-    { x: 540, y: 900, w: 40, h: 40 },
-    { x: 580, y: 900, w: 40, h: 40 },
-    { x: 620, y: 900, w: 40, h: 40 },
-    { x: 660, y: 900, w: 40, h: 40 },
-    { x: 700, y: 900, w: 40, h: 40 },
-    { x: 740, y: 900, w: 40, h: 40 },
-    { x: 780, y: 900, w: 40, h: 40 },
-    { x: 820, y: 900, w: 40, h: 40 },
-    { x: 860, y: 900, w: 40, h: 40 },
-    { x: 900, y: 900, w: 40, h: 40 },
-    { x: 940, y: 900, w: 40, h: 40 },
-    { x: 980, y: 900, w: 40, h: 40 },
-    { x: 1020, y: 900, w: 40, h: 40 },
-
-    // Maze boundaries
-    { x: 500, y: 0, w: 560, h: 380 },
-    { x: 500, y: 940, w: 560, h: 220 },
-  ]),
-
-  guards: [FIRST_LEVEL_GUARD],
-  guard: FIRST_LEVEL_GUARD,
+  guards: FIRST_LEVEL_GUARDS,
+  guard: FIRST_LEVEL_GUARDS[0],
 };
