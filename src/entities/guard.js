@@ -178,6 +178,12 @@ class Guard {
 
     this._wasHiddenPrev = false;
 
+    this._actionStuckTimer = 0;
+    this._actionStuckTimeout = numberOr(
+      fallbackConfig.actionStuckTimeout,
+      numberOr(guardDefaults.actionStuckTimeout, 0.85)
+    );
+
     this.removeFromWorld = false;
     this.isGuard = true;
 
@@ -325,12 +331,14 @@ class Guard {
         this.investigatePauseTimer <= 0
       ) {
         this.investigatePauseTimer = this.investigatePauseDuration;
+        this._actionStuckTimer = 0;
       } else if (
         this.aiState === "SEARCH" &&
         dist < this.waypointReachDistance &&
         this.searchPauseTimer <= 0
       ) {
         this.searchPauseTimer = this.searchPauseDuration;
+        this._actionStuckTimer = 0;
       } else if (this.aiState === "RETURN" && dist < this.waypointReachDistance) {
         this.aiState = "PATROL";
       } else if (dist >= 1) {
@@ -360,6 +368,22 @@ class Guard {
           }
         } else if (this.aiState === "PATROL") {
           this._stuckTimer = 0;
+        }
+
+        if (this.aiState === "INVESTIGATE" || this.aiState === "SEARCH") {
+          if (moved < this.stuckMoveThreshold) {
+            this._actionStuckTimer += dt;
+            if (this._actionStuckTimer > this._actionStuckTimeout) {
+              if (this.aiState === "INVESTIGATE") {
+                this.investigatePauseTimer = Math.max(this.investigatePauseTimer, this.investigatePauseDuration);
+              } else if (this.aiState === "SEARCH") {
+                this.searchPauseTimer = Math.max(this.searchPauseTimer, this.searchPauseDuration);
+              }
+              this._actionStuckTimer = 0;
+            }
+          } else {
+            this._actionStuckTimer = 0;
+          }
         }
       }
     }
@@ -537,6 +561,8 @@ class Guard {
 
     this._wasHiddenPrev = false;
 
+    this._actionStuckTimer = 0;
+
     if (this.animator) {
       this.animator.currentFrame = 0;
       this.animator.elapsedTime = 0;
@@ -548,6 +574,7 @@ class Guard {
     this.searchPlan = [];
     this.searchIndex = 0;
     this.searchPauseTimer = this.searchPauseDuration;
+    this._actionStuckTimer = 0;
 
     const plan = [];
 
