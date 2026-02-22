@@ -78,6 +78,16 @@ class Player {
     if(this.animator) {
       this.animator.update(dt, isMoving);
     }
+
+    if (this.state.audio && typeof this.state.audio.onPlayerMovement === "function") {
+      this.state.audio.onPlayerMovement(
+        isMoving,
+        dt,
+        this.hidden,
+        this.state.status,
+        this.state.playerState
+      );
+    }
   }
 
   draw(ctx) {

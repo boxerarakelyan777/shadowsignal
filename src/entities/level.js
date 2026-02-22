@@ -78,6 +78,7 @@ class LevelRenderer {
     this.state.menuOptionRects = [];
     this.state.levelOptionRects = [];
     this.state.focusOptionRects = [];
+    this.state.audioSliderRects = [];
 
     if (status === "splash") {
       this._drawSceneBackground(ctx, cw, ch, "splash");
@@ -114,47 +115,74 @@ class LevelRenderer {
       return;
     }
 
-    this._drawGameplayHud(ctx, cw, ch);
+    const hasFocusModal = status === "paused" || status === "won" || status === "lost";
+    this._drawGameplayHud(ctx, cw, ch, {
+      drawPrompt: !hasFocusModal,
+    });
+
+    let focusModalBounds = null;
 
     if (status === "paused") {
-      this._drawFocusModal(ctx, cw, ch, {
+      const audioSummary = this._buildAudioSummary();
+      focusModalBounds = this._drawFocusModal(ctx, cw, ch, {
         title: "PAUSED",
-        subtitle: "Operation frozen",
+        subtitle: audioSummary ? `Operation frozen - ${audioSummary}` : "Operation frozen",
         accent: "#7de0ff",
+        audioSliders: true,
+        audioSlidersTitle: "AUDIO MIX",
         buttons: [
           { label: "Resume", actionId: "resume" },
           { label: "Retry", actionId: "retry" },
           { label: "Levels", actionId: "levels" },
-          { label: "Title", actionId: "title" },
+          { label: "Home", actionId: "home" },
+          { label: "Credits", actionId: "credits" },
         ],
       });
     } else if (status === "won") {
       const hasNextLevel = this.state.levelIndex + 1 < this._num(this.state.levelCount, 1);
-      this._drawFocusModal(ctx, cw, ch, {
+      const wonButtons = hasNextLevel
+        ? [
+            { label: "Next Level", actionId: "next" },
+            { label: "Retry", actionId: "retry" },
+            { label: "Levels", actionId: "levels" },
+            { label: "Home", actionId: "home" },
+            { label: "Credits", actionId: "credits" },
+          ]
+        : [
+            { label: "Credits", actionId: "credits" },
+            { label: "Retry", actionId: "retry" },
+            { label: "Levels", actionId: "levels" },
+            { label: "Home", actionId: "home" },
+          ];
+      focusModalBounds = this._drawFocusModal(ctx, cw, ch, {
         title: "MISSION COMPLETE",
         subtitle: "Extraction confirmed",
         accent: "#8ef0b0",
-        buttons: [
-          { label: hasNextLevel ? "Next Level" : "Credits", actionId: "next" },
-          { label: "Retry", actionId: "retry" },
-          { label: "Levels", actionId: "levels" },
-          { label: "Title", actionId: "title" },
-        ],
+        audioSliders: true,
+        audioSlidersTitle: "AUDIO MIX",
+        buttons: wonButtons,
       });
     } else if (status === "lost") {
       const guardInfo = this.state.lastCaptureByGuardId !== null
         ? `Detected by guard ${this.state.lastCaptureByGuardId + 1}`
         : "Detection confirmed";
-      this._drawFocusModal(ctx, cw, ch, {
+      focusModalBounds = this._drawFocusModal(ctx, cw, ch, {
         title: "MISSION FAILED",
         subtitle: guardInfo,
         accent: "#ff7a72",
+        audioSliders: true,
+        audioSlidersTitle: "AUDIO MIX",
         buttons: [
           { label: "Retry", actionId: "retry" },
           { label: "Levels", actionId: "levels" },
-          { label: "Title", actionId: "title" },
+          { label: "Home", actionId: "home" },
+          { label: "Credits", actionId: "credits" },
         ],
       });
+    }
+
+    if (hasFocusModal) {
+      this._drawModalPromptToast(ctx, cw, ch, focusModalBounds, (this.state.message || "").toString());
     }
 
     ctx.restore();
@@ -1040,6 +1068,9 @@ class LevelRenderer {
 
   _drawMainMenu(ctx, cw, ch) {
     const selectedIndex = clamp(Number(this.state.menuIndex) || 0, 0, 1);
+    const settings = this.state?.audio && typeof this.state.audio.getSettingsSnapshot === "function"
+      ? this.state.audio.getSettingsSnapshot()
+      : null;
     const options = [
       {
         title: "Start Game",
@@ -1051,8 +1082,9 @@ class LevelRenderer {
       },
     ];
 
-    const panelW = Math.min(940, cw * 0.84);
-    const panelH = Math.min(520, ch * 0.74);
+    const panelW = Math.min(960, cw * 0.86);
+    const targetPanelH = settings ? 560 : 500;
+    const panelH = Math.min(Math.max(targetPanelH, ch * 0.72), ch * 0.9);
     const panelX = (cw - panelW) / 2;
     const panelY = (ch - panelH) / 2;
 
@@ -1076,11 +1108,10 @@ class LevelRenderer {
     ctx.fillText("Use W/S, Arrow Keys, or Mouse to select", centerX, panelY + 110);
 
     const buttonW = Math.min(560, panelW * 0.72);
-    const buttonH = 78;
-    const buttonGap = 22;
-    const totalButtonsH = options.length * buttonH + (options.length - 1) * buttonGap;
+    const buttonH = panelH < 500 ? 62 : 70;
+    const buttonGap = panelH < 500 ? 14 : 18;
     const buttonX = centerX - buttonW / 2;
-    const firstY = panelY + panelH * 0.56 - totalButtonsH / 2;
+    const firstY = panelY + 146;
 
     for (let i = 0; i < options.length; i++) {
       const y = firstY + i * (buttonH + buttonGap);
@@ -1095,12 +1126,137 @@ class LevelRenderer {
       });
     }
 
+    if (settings) {
+      this._drawMainMenuAudioSliders(ctx, panelX, panelY, panelW, panelH, settings);
+    }
+
     ctx.fillStyle = "rgba(219, 235, 248, 0.88)";
     ctx.font = UI_FONTS.bodySmall;
-    ctx.fillText("Enter/Space/Click: Confirm  |  Esc: Back", centerX, panelY + panelH - 40);
+    ctx.fillText("Drag sliders to tune volume", centerX, panelY + panelH - 62);
+    ctx.fillText("Enter/Space/Click: Confirm  |  Esc: Back", centerX, panelY + panelH - 36);
 
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
+  }
+
+  _drawMainMenuAudioSliders(ctx, panelX, panelY, panelW, panelH, settings) {
+    if (!settings) return;
+
+    const sectionH = 114;
+    const sectionX = panelX + 24;
+    const sectionW = Math.max(240, panelW - 48);
+    const sectionY = panelY + panelH - sectionH - 88;
+    const sectionBottomLimit = panelY + panelH - 72;
+    const drawY = Math.min(sectionY, sectionBottomLimit - sectionH);
+    this._drawAudioSliderSection(ctx, {
+      x: sectionX,
+      y: drawY,
+      w: sectionW,
+      h: sectionH,
+      settings,
+      title: "AUDIO MIX",
+      compact: true,
+    });
+  }
+
+  _drawAudioSliderSection(ctx, config = {}) {
+    const x = this._num(config.x, 0);
+    const y = this._num(config.y, 0);
+    const w = Math.max(220, this._num(config.w, 240));
+    const h = Math.max(102, this._num(config.h, 112));
+    const settings = config.settings;
+    if (!settings) return;
+    const compact = !!config.compact;
+    const title = (config.title || "AUDIO MIX").toString();
+    const centerX = x + w / 2;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(11, 23, 35, 0.54)";
+    this._roundedRect(ctx, x, y, w, h, 16);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(165, 224, 255, 0.36)";
+    ctx.lineWidth = 1.1;
+    this._roundedRect(ctx, x, y, w, h, 16);
+    ctx.stroke();
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(235, 247, 255, 0.94)";
+    ctx.font = UI_FONTS.bodySmall;
+    ctx.fillText(title, centerX, y + (compact ? 18 : 20));
+    ctx.restore();
+
+    const sliders = [
+      { settingId: "music", label: "Music", value: this._num(settings.music, 0.2) },
+      { settingId: "sfx", label: "SFX", value: this._num(settings.sfx, 0.6) },
+      { settingId: "footsteps", label: "Footsteps", value: this._num(settings.footsteps, 0.34) },
+    ];
+
+    const contentPadding = compact ? 18 : 22;
+    const sliderGap = compact ? 18 : 20;
+    const sliderW = Math.max(
+      compact ? 56 : 68,
+      (w - contentPadding * 2 - sliderGap * (sliders.length - 1)) / sliders.length
+    );
+    const sliderStartX = x + (w - (sliderW * sliders.length + sliderGap * (sliders.length - 1))) / 2;
+    const labelY = y + (compact ? 40 : 44);
+    const trackY = y + (compact ? 72 : 78);
+    const trackH = 8;
+    const knobR = compact ? 9 : 10;
+
+    for (let i = 0; i < sliders.length; i++) {
+      const slider = sliders[i];
+      const sx = sliderStartX + i * (sliderW + sliderGap);
+      const value = clamp(this._num(slider.value, 0), 0, 1);
+      const percent = Math.round(value * 100);
+      const trackX = sx;
+      const trackYTop = trackY - trackH / 2;
+      const fillW = Math.max(trackH, sliderW * value);
+      const knobX = trackX + sliderW * value;
+
+      ctx.save();
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(233, 245, 255, 0.95)";
+      ctx.font = UI_FONTS.bodySmall;
+      ctx.fillText(slider.label, sx, labelY);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "rgba(255, 214, 130, 0.96)";
+      ctx.fillText(`${percent}%`, sx + sliderW, labelY);
+
+      ctx.fillStyle = "rgba(14, 26, 38, 0.96)";
+      this._roundedRect(ctx, trackX, trackYTop, sliderW, trackH, trackH / 2);
+      ctx.fill();
+
+      const fill = ctx.createLinearGradient(trackX, trackYTop, trackX + sliderW, trackYTop);
+      fill.addColorStop(0, "rgba(116, 210, 255, 0.96)");
+      fill.addColorStop(1, "rgba(255, 197, 117, 0.96)");
+      ctx.fillStyle = fill;
+      this._roundedRect(ctx, trackX, trackYTop, fillW, trackH, trackH / 2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255, 247, 232, 0.98)";
+      ctx.strokeStyle = "rgba(75, 135, 172, 0.92)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(knobX, trackY, knobR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      this.state.audioSliderRects.push({
+        settingId: slider.settingId,
+        label: slider.label,
+        x: trackX - 12,
+        y: trackYTop - 14,
+        w: sliderW + 24,
+        h: trackH + 28,
+        trackX,
+        trackY: trackYTop,
+        trackW: sliderW,
+        trackH,
+      });
+    }
   }
 
   _drawLevelSelect(ctx, cw, ch) {
@@ -1293,7 +1449,7 @@ class LevelRenderer {
     ctx.textBaseline = "alphabetic";
   }
 
-  _drawGameplayHud(ctx, cw, ch) {
+  _drawGameplayHud(ctx, cw, ch, options = {}) {
     const dpr = Math.max(1, this._num(window.devicePixelRatio, 1));
     const cssW = cw / dpr;
     const cssH = ch / dpr;
@@ -1512,8 +1668,9 @@ class LevelRenderer {
       statusY += rightRowH;
     }
 
+    const drawPrompt = options?.drawPrompt !== false;
     const prompt = this.state.uiPrompt || this.state.message;
-    if (prompt) {
+    if (drawPrompt && prompt) {
       const promptW = Math.min(820 * ui, cw * 0.8);
       const promptH = 56 * ui;
       const promptX = (cw - promptW) / 2;
@@ -1550,12 +1707,80 @@ class LevelRenderer {
     }
   }
 
+  _drawModalPromptToast(ctx, cw, ch, modalBounds, text) {
+    const prompt = (text || "").trim();
+    if (!prompt) return;
+
+    const dpr = Math.max(1, this._num(window.devicePixelRatio, 1));
+    const cssW = cw / dpr;
+    const cssH = ch / dpr;
+    const cssScale = clamp(Math.min(cssW / 1280, cssH / 720), 0.95, 1.24);
+    const ui = dpr * cssScale;
+
+    const promptW = Math.min(760 * ui, cw * 0.72);
+    const promptH = 58 * ui;
+    let promptX = (cw - promptW) / 2;
+    let promptY = ch - promptH - 16 * ui;
+
+    if (modalBounds && Number.isFinite(modalBounds.y) && Number.isFinite(modalBounds.h)) {
+      const belowY = modalBounds.y + modalBounds.h + 14 * ui;
+      if (belowY + promptH <= ch - 10 * ui) {
+        promptY = belowY;
+      } else {
+        const insideY = modalBounds.y + modalBounds.h - promptH - 14 * ui;
+        if (insideY >= modalBounds.y + 10 * ui) {
+          promptY = insideY;
+        }
+      }
+      if (Number.isFinite(modalBounds.x) && Number.isFinite(modalBounds.w)) {
+        const centerX = modalBounds.x + modalBounds.w / 2;
+        promptX = centerX - promptW / 2;
+      }
+    }
+
+    promptX = Math.max(8 * ui, Math.min(cw - promptW - 8 * ui, promptX));
+    promptY = Math.max(8 * ui, Math.min(ch - promptH - 8 * ui, promptY));
+
+    this._drawGlassPanel(ctx, promptX, promptY, promptW, promptH, {
+      border: "rgba(244, 233, 171, 0.95)",
+      glow: "rgba(255, 206, 124, 0.58)",
+      top: "rgba(23, 33, 45, 0.98)",
+      bottom: "rgba(11, 18, 28, 0.99)",
+      cornerRadius: 13 * ui,
+    });
+
+    this._drawUiIcon(ctx, "interact", promptX + 12 * ui, promptY + 14 * ui, 24 * ui, {
+      alpha: 0.99,
+    });
+
+    ctx.fillStyle = "rgba(255, 249, 234, 0.99)";
+    ctx.font = `600 ${Math.round(18 * ui)}px "Rajdhani", "Trebuchet MS", sans-serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(prompt, promptX + 44 * ui, promptY + promptH / 2 + 1 * ui);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+  }
+
   _drawFocusModal(ctx, cw, ch, data) {
     ctx.fillStyle = "rgba(0, 0, 0, 0.48)";
     ctx.fillRect(0, 0, cw, ch);
 
+    const buttons = Array.isArray(data.buttons) ? data.buttons.filter(Boolean) : [];
+    const showAudioSliders = !!data.audioSliders;
+    const audioSettings = showAudioSliders && this.state?.audio && typeof this.state.audio.getSettingsSnapshot === "function"
+      ? this.state.audio.getSettingsSnapshot()
+      : null;
+    const audioSectionH = audioSettings ? 122 : 0;
+    const columns = Math.min(2, Math.max(1, buttons.length));
+    const rows = Math.max(1, Math.ceil(buttons.length / columns));
+    const buttonH = 52;
+    const gapY = 14;
+    const totalButtonsH = rows * buttonH + (rows - 1) * gapY;
+
     const panelW = Math.min(760, cw * 0.74);
-    const panelH = Math.min(340, ch * 0.48);
+    const minPanelH = 246 + totalButtonsH + audioSectionH;
+    const panelH = Math.min(Math.max(340, minPanelH), ch * 0.88);
     const panelX = (cw - panelW) / 2;
     const panelY = (ch - panelH) / 2;
     const centerX = panelX + panelW / 2;
@@ -1579,49 +1804,63 @@ class LevelRenderer {
     ctx.font = UI_FONTS.body;
     ctx.fillText(data.subtitle || "", centerX, panelY + 122);
 
-    const buttons = Array.isArray(data.buttons) ? data.buttons.filter(Boolean) : [];
+    let contentY = panelY + 152;
+    if (audioSettings) {
+      this._drawAudioSliderSection(ctx, {
+        x: panelX + 28,
+        y: contentY,
+        w: panelW - 56,
+        h: audioSectionH,
+        settings: audioSettings,
+        title: data.audioSlidersTitle || "AUDIO MIX",
+        compact: false,
+      });
+      contentY += audioSectionH + 16;
+    }
+
     this.state.focusOptionRects = [];
     if (buttons.length) {
-      const columns = Math.min(2, buttons.length);
-      const rows = Math.ceil(buttons.length / columns);
       const buttonW = Math.min(270, (panelW - 92) / columns);
-      const buttonH = 52;
       const gapX = 20;
-      const gapY = 14;
-      const totalRowW = columns * buttonW + (columns - 1) * gapX;
-      const totalButtonsH = rows * buttonH + (rows - 1) * gapY;
-      const startX = panelX + (panelW - totalRowW) / 2;
-      const buttonsTop = panelY + 158;
+      const buttonsTop = contentY;
       const buttonsBottom = panelY + panelH - 24;
       const buttonsAreaH = Math.max(buttonH, buttonsBottom - buttonsTop);
       const startY = buttonsTop + Math.max(0, (buttonsAreaH - totalButtonsH) / 2);
       const hovered = Number.isFinite(this.state.focusIndex) ? this.state.focusIndex : -1;
 
-      for (let i = 0; i < buttons.length; i++) {
-        const col = i % columns;
-        const row = Math.floor(i / columns);
-        const rect = {
-          x: startX + col * (buttonW + gapX),
-          y: startY + row * (buttonH + gapY),
-          w: buttonW,
-          h: buttonH,
-          actionId: buttons[i].actionId || "",
-        };
-        this.state.focusOptionRects.push(rect);
-        this._drawButton(ctx, {
-          x: rect.x,
-          y: rect.y,
-          w: rect.w,
-          h: rect.h,
-          label: buttons[i].label || "",
-          selected: hovered === i,
-          bright: hovered === i,
-        });
+      for (let row = 0; row < rows; row++) {
+        const rowStart = row * columns;
+        const rowEnd = Math.min(buttons.length, rowStart + columns);
+        const rowCount = rowEnd - rowStart;
+        const rowW = rowCount * buttonW + Math.max(0, rowCount - 1) * gapX;
+        const rowStartX = panelX + (panelW - rowW) / 2;
+
+        for (let col = 0; col < rowCount; col++) {
+          const i = rowStart + col;
+          const rect = {
+            x: rowStartX + col * (buttonW + gapX),
+            y: startY + row * (buttonH + gapY),
+            w: buttonW,
+            h: buttonH,
+            actionId: buttons[i].actionId || "",
+          };
+          this.state.focusOptionRects.push(rect);
+          this._drawButton(ctx, {
+            x: rect.x,
+            y: rect.y,
+            w: rect.w,
+            h: rect.h,
+            label: buttons[i].label || "",
+            selected: hovered === i,
+            bright: hovered === i,
+          });
+        }
       }
     }
 
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
+    return { x: panelX, y: panelY, w: panelW, h: panelH };
   }
 
   _drawButton(ctx, data) {
@@ -1898,6 +2137,17 @@ class LevelRenderer {
       valueColor: "rgba(198, 241, 222, 0.96)",
       stops: ["#4fa77a", "#72c295", "#9adab6"],
     };
+  }
+
+  _buildAudioSummary() {
+    const audio = this.state?.audio;
+    if (!audio || typeof audio.getSettingsSnapshot !== "function") return "";
+
+    const settings = audio.getSettingsSnapshot();
+    const music = Math.round(this._num(settings.music, 0) * 100);
+    const sfx = Math.round(this._num(settings.sfx, 0) * 100);
+    const steps = Math.round(this._num(settings.footsteps, 0) * 100);
+    return `Music ${music}%  SFX ${sfx}%  Steps ${steps}%`;
   }
 
   _getComponentSpritePathMap() {

@@ -400,6 +400,19 @@ class Guard {
       this.animator.update(dt, isMoving);
     }
 
+    if (this.state.audio && typeof this.state.audio.onGuardMovement === "function") {
+      const playerCenter = centerOf(this.player);
+      this.state.audio.onGuardMovement(
+        this.guardId,
+        isMoving,
+        dt,
+        this.aiState,
+        this.state.status,
+        c,
+        playerCenter
+      );
+    }
+
     const debugInfo = this._getDebugSlot();
     debugInfo.id = this.guardId;
     debugInfo.name = this.name;

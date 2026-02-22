@@ -12,6 +12,9 @@ class GameEngine {
         // Information on the input
         this.click = null;
         this.mouse = null;
+        this.mouseDown = false;
+        this.mousePressed = null;
+        this.mouseReleased = null;
         this.wheel = null;
         this.keys = {};
         this.input = new Input(this);
@@ -72,6 +75,31 @@ class GameEngine {
             }
         );
 
+        this.ctx.canvas.addEventListener("mousedown",
+            e => {
+                const point = getXandY(e);
+                if (this.options.debugging) {
+                    console.log("MOUSE_DOWN", point);
+                }
+                this.mouse = point;
+                this.mouseDown = true;
+                this.mousePressed = point;
+            }
+        );
+
+        window.addEventListener("mouseup",
+            e => {
+                if (!this.ctx || !this.ctx.canvas) return;
+                const point = getXandY(e);
+                if (this.options.debugging) {
+                    console.log("MOUSE_UP", point);
+                }
+                this.mouse = point;
+                this.mouseDown = false;
+                this.mouseReleased = point;
+            }
+        );
+
         this.ctx.canvas.addEventListener("click", 
             e => {
                 if (this.options.debugging) {
@@ -105,6 +133,9 @@ class GameEngine {
         const clearKeys = () => {
             this.keys = {};
             if (this.input) this.input.previousKeys = {};
+            this.mouseDown = false;
+            this.mousePressed = null;
+            this.mouseReleased = null;
         };
 
         const handleKeyDown = event => {

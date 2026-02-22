@@ -38,11 +38,25 @@ class GameController {
     this.levelCatalog = Array.isArray(options.levelCatalog) ? options.levelCatalog : [];
     this.scheduleLevelLoad =
       typeof options.scheduleLevelLoad === "function" ? options.scheduleLevelLoad : null;
+    this.activeAudioSliderId = null;
+    this.ignoreAudioClickFrames = 0;
+    this.mousePressedThisFrame = null;
   }
 
   update() {
     const input = this.state.input;
     if (!input) return;
+    this.mousePressedThisFrame = this.game.mousePressed;
+    this.game.mousePressed = null;
+    this.game.mouseReleased = null;
+    if (this.ignoreAudioClickFrames > 0) this.ignoreAudioClickFrames -= 1;
+    const sliderEnabledScreen = this.state.status === "menu" || this.state.status === "paused";
+    if (!sliderEnabledScreen && !this.game.mouseDown) {
+      this.activeAudioSliderId = null;
+    }
+    if (this.state.audio && typeof this.state.audio.update === "function") {
+      this.state.audio.update(this.state, this.game.clockTick);
+    }
     const interact = this._readInteract(input);
 
     if (input.justPressed("g")) {
@@ -72,6 +86,10 @@ class GameController {
       this._clearGameplayPrompt();
       const menuOptionsCount = 2;
       this.state.menuIndex = clamp(Number(this.state.menuIndex) || 0, 0, 1);
+      if (this._handleAudioSliderInput()) {
+        input.update();
+        return;
+      }
       this._updateMenuSelectionFromMouse();
 
       const clickedMenuIndex = this._consumeClickSelection(this.state.menuOptionRects);
@@ -80,11 +98,14 @@ class GameController {
         this._activateMenuOption(clickedMenuIndex);
       } else if (this._isMenuUpPressed(input)) {
         this.state.menuIndex = (this.state.menuIndex + menuOptionsCount - 1) % menuOptionsCount;
+        this._playUiMove();
       } else if (this._isMenuDownPressed(input)) {
         this.state.menuIndex = (this.state.menuIndex + 1) % menuOptionsCount;
+        this._playUiMove();
       } else if (this._isConfirmPressed(input)) {
         this._activateMenuOption(this.state.menuIndex);
       } else if (this._isPauseTogglePressed(input)) {
+        this._playUiBack();
         this.state.status = "splash";
       }
       input.update();
@@ -98,6 +119,7 @@ class GameController {
       const clickedLevelIndex = this._consumeClickSelection(this.state.levelOptionRects);
       if (clickedLevelIndex >= 0) {
         this.state.selectedLevelIndex = clickedLevelIndex;
+        this._playUiConfirm();
         this._queueLevelLoad(this.state.selectedLevelIndex, "playing");
         input.update();
         return;
@@ -105,13 +127,18 @@ class GameController {
 
       if (this._isMenuUpPressed(input)) {
         this.state.selectedLevelIndex = this._wrappedLevelIndex(this.state.selectedLevelIndex - 1);
+        this._playUiMove();
       } else if (this._isMenuDownPressed(input)) {
         this.state.selectedLevelIndex = this._wrappedLevelIndex(this.state.selectedLevelIndex + 1);
+        this._playUiMove();
       } else if (this._isConfirmPressed(input)) {
+        this._playUiConfirm();
         this._queueLevelLoad(this.state.selectedLevelIndex, "playing");
       } else if (this._isPauseTogglePressed(input)) {
+        this._playUiBack();
         this.state.status = "menu";
       } else if (input.justPressed("c")) {
+        this._playUiConfirm();
         this.state.status = "credits";
       }
       input.update();
@@ -121,6 +148,7 @@ class GameController {
     if (this.state.status === "credits") {
       this._clearGameplayPrompt();
       if (this._isConfirmPressed(input) || this._isPauseTogglePressed(input)) {
+        this._playUiBack();
         this.state.status = "menu";
       }
       input.update();
@@ -128,18 +156,35 @@ class GameController {
     }
 
     if (this.state.status === "paused") {
+      if (this._handleAudioSliderInput()) {
+        this._clearGameplayPrompt();
+        input.update();
+        return;
+      }
       this._updateFocusSelectionFromMouse();
       const clickedFocusIndex = this._consumeClickSelection(this.state.focusOptionRects);
       if (clickedFocusIndex >= 0) {
         this._activateFocusOption(clickedFocusIndex);
+      } else if (input.justPressed("[")) {
+        this._handleFocusAction("audio-music-down");
+      } else if (input.justPressed("]")) {
+        this._handleFocusAction("audio-music-up");
+      } else if (input.justPressed("-")) {
+        this._handleFocusAction("audio-sfx-down");
+      } else if (input.justPressed("=") || input.justPressed("+")) {
+        this._handleFocusAction("audio-sfx-up");
+      } else if (input.justPressed(",")) {
+        this._handleFocusAction("audio-steps-down");
+      } else if (input.justPressed(".")) {
+        this._handleFocusAction("audio-steps-up");
       } else if (this._isPauseTogglePressed(input) || input.justPressed("p")) {
         this._handleFocusAction("resume");
       } else if (input.justPressed("r")) {
         this._handleFocusAction("retry");
       } else if (input.justPressed("l")) {
         this._handleFocusAction("levels");
-      } else if (input.justPressed("t")) {
-        this._handleFocusAction("title");
+      } else if (input.justPressed("h") || input.justPressed("t")) {
+        this._handleFocusAction("home");
       } else if (input.justPressed("c")) {
         this._handleFocusAction("credits");
       }
@@ -149,6 +194,11 @@ class GameController {
     }
 
     if (this.state.status === "won") {
+      if (this._handleAudioSliderInput()) {
+        this._clearGameplayPrompt();
+        input.update();
+        return;
+      }
       this._updateFocusSelectionFromMouse();
       const clickedFocusIndex = this._consumeClickSelection(this.state.focusOptionRects);
       if (clickedFocusIndex >= 0) {
@@ -159,8 +209,10 @@ class GameController {
         this._handleFocusAction("retry");
       } else if (input.justPressed("l")) {
         this._handleFocusAction("levels");
-      } else if (input.justPressed("t")) {
-        this._handleFocusAction("title");
+      } else if (input.justPressed("h") || input.justPressed("t")) {
+        this._handleFocusAction("home");
+      } else if (input.justPressed("c")) {
+        this._handleFocusAction("credits");
       }
       this._clearGameplayPrompt();
       input.update();
@@ -175,6 +227,11 @@ class GameController {
     }
 
     if (this.state.status === "lost") {
+      if (this._handleAudioSliderInput()) {
+        this._clearGameplayPrompt();
+        input.update();
+        return;
+      }
       this._updateFocusSelectionFromMouse();
       const clickedFocusIndex = this._consumeClickSelection(this.state.focusOptionRects);
       if (clickedFocusIndex >= 0) {
@@ -183,8 +240,10 @@ class GameController {
         this._handleFocusAction("retry");
       } else if (input.justPressed("l")) {
         this._handleFocusAction("levels");
-      } else if (input.justPressed("t")) {
-        this._handleFocusAction("title");
+      } else if (input.justPressed("h") || input.justPressed("t")) {
+        this._handleFocusAction("home");
+      } else if (input.justPressed("c")) {
+        this._handleFocusAction("credits");
       }
       this._clearGameplayPrompt();
       input.update();
@@ -198,6 +257,7 @@ class GameController {
     }
 
     if (this._isPauseTogglePressed(input)) {
+      this._playUiBack();
       this.state.status = "paused";
       this._clearGameplayPrompt();
       this.game.click = null;
@@ -417,21 +477,27 @@ class GameController {
 
   _updateMenuSelectionFromMouse() {
     const hoveredIndex = this._hitTestSelection(this.state.menuOptionRects, this.game.mouse);
-    if (hoveredIndex >= 0) {
+    if (hoveredIndex >= 0 && hoveredIndex !== this.state.menuIndex) {
       this.state.menuIndex = hoveredIndex;
+      this._playUiMove();
     }
   }
 
   _updateLevelSelectionFromMouse() {
     const hoveredIndex = this._hitTestSelection(this.state.levelOptionRects, this.game.mouse);
-    if (hoveredIndex >= 0) {
+    if (hoveredIndex >= 0 && hoveredIndex !== this.state.selectedLevelIndex) {
       this.state.selectedLevelIndex = hoveredIndex;
+      this._playUiMove();
     }
   }
 
   _updateFocusSelectionFromMouse() {
     const hoveredIndex = this._hitTestSelection(this.state.focusOptionRects, this.game.mouse);
-    this.state.focusIndex = hoveredIndex >= 0 ? hoveredIndex : -1;
+    const nextIndex = hoveredIndex >= 0 ? hoveredIndex : -1;
+    if (nextIndex !== this.state.focusIndex) {
+      this.state.focusIndex = nextIndex;
+      if (nextIndex >= 0) this._playUiMove();
+    }
   }
 
   _consumeClickSelection(optionRects) {
@@ -459,7 +525,97 @@ class GameController {
     return -1;
   }
 
+  _handleAudioSliderInput() {
+    const sliders = Array.isArray(this.state.audioSliderRects) ? this.state.audioSliderRects : [];
+    const audio = this.state.audio;
+    if (!sliders.length || !audio || typeof audio.setSetting !== "function") {
+      this.activeAudioSliderId = null;
+      return false;
+    }
+
+    if (this.ignoreAudioClickFrames > 0 && this.game.click) {
+      this.game.click = null;
+      this.ignoreAudioClickFrames = 0;
+      return true;
+    }
+
+    let handled = false;
+    if (this.mousePressedThisFrame) {
+      const slider = this._findAudioSliderAtPoint(sliders, this.mousePressedThisFrame);
+      if (slider) {
+        this.activeAudioSliderId = slider.settingId || null;
+        this.ignoreAudioClickFrames = 4;
+        handled = this._updateAudioSliderFromPoint(slider, this.mousePressedThisFrame) || handled;
+        this._playUiConfirm();
+      } else {
+        this.activeAudioSliderId = null;
+      }
+    }
+
+    if (this.activeAudioSliderId && this.game.mouseDown && this.game.mouse) {
+      const activeSlider = sliders.find(s => s?.settingId === this.activeAudioSliderId);
+      if (activeSlider) {
+        this.ignoreAudioClickFrames = 4;
+        handled = this._updateAudioSliderFromPoint(activeSlider, this.game.mouse) || handled;
+      }
+    }
+
+    if (this.activeAudioSliderId && !this.game.mouseDown) {
+      this.activeAudioSliderId = null;
+    }
+
+    if (!handled && this.game.click) {
+      const slider = this._findAudioSliderAtPoint(sliders, this.game.click);
+      if (slider) {
+        this.ignoreAudioClickFrames = 0;
+        handled = this._updateAudioSliderFromPoint(slider, this.game.click) || handled;
+        this._playUiConfirm();
+      }
+    }
+
+    if (handled) {
+      this.game.click = null;
+      return true;
+    }
+    return false;
+  }
+
+  _findAudioSliderAtPoint(sliders, point) {
+    if (!point || !Array.isArray(sliders)) return null;
+    for (const slider of sliders) {
+      if (!slider) continue;
+      if (
+        point.x >= slider.x &&
+        point.x <= slider.x + slider.w &&
+        point.y >= slider.y &&
+        point.y <= slider.y + slider.h
+      ) {
+        return slider;
+      }
+    }
+    return null;
+  }
+
+  _updateAudioSliderFromPoint(slider, point) {
+    const audio = this.state.audio;
+    if (!slider || !point || !audio || typeof audio.setSetting !== "function") return false;
+
+    const trackX = this._num(slider.trackX, this._num(slider.x, 0));
+    const trackW = Math.max(1, this._num(slider.trackW, this._num(slider.w, 1)));
+    const ratio = clamp((point.x - trackX) / trackW, 0, 1);
+    const next = audio.setSetting(slider.settingId, ratio);
+    if (!Number.isFinite(next)) return false;
+
+    const label = slider.label || slider.settingId || "Audio";
+    this.state.message = `${label} volume: ${Math.round(next * 100)}%`;
+    this.state.messageTimer = 0.75;
+    return true;
+  }
+
   _activateMenuOption(index) {
+    if (index !== 0 && index !== 1) return;
+    this._playUiConfirm();
+
     if (index === 0) {
       this.state.selectedLevelIndex = this.state.levelIndex;
       this.state.status = "level_select";
@@ -480,38 +636,107 @@ class GameController {
 
   _handleFocusAction(actionId) {
     if (actionId === "resume") {
+      this._playUiConfirm();
       this.state.status = "playing";
       return;
     }
 
     if (actionId === "retry") {
+      this._playUiConfirm();
       this.resetLevel();
       return;
     }
 
     if (actionId === "levels") {
+      this._playUiConfirm();
       this.state.status = "level_select";
       return;
     }
 
-    if (actionId === "title") {
+    if (actionId === "title" || actionId === "home") {
+      this._playUiConfirm();
       this.state.status = "splash";
       return;
     }
 
     if (actionId === "credits") {
+      this._playUiConfirm();
       this.state.status = "credits";
       return;
     }
 
     if (actionId === "next") {
+      this._playUiConfirm();
       const nextLevelIndex = this.state.levelIndex + 1;
       if (nextLevelIndex < this._levelCount()) {
         this._queueLevelLoad(nextLevelIndex, "playing");
       } else {
         this.state.status = "credits";
       }
+      return;
     }
+
+    if (actionId === "audio-music-down") {
+      this._playUiMove();
+      this._adjustAudioSetting("music", -0.05, "Music");
+      return;
+    }
+
+    if (actionId === "audio-music-up") {
+      this._playUiMove();
+      this._adjustAudioSetting("music", 0.05, "Music");
+      return;
+    }
+
+    if (actionId === "audio-sfx-down") {
+      this._playUiMove();
+      this._adjustAudioSetting("sfx", -0.05, "SFX");
+      return;
+    }
+
+    if (actionId === "audio-sfx-up") {
+      this._playUiMove();
+      this._adjustAudioSetting("sfx", 0.05, "SFX");
+      return;
+    }
+
+    if (actionId === "audio-steps-down") {
+      this._playUiMove();
+      this._adjustAudioSetting("footsteps", -0.05, "Footsteps");
+      return;
+    }
+
+    if (actionId === "audio-steps-up") {
+      this._playUiMove();
+      this._adjustAudioSetting("footsteps", 0.05, "Footsteps");
+    }
+  }
+
+  _playUiMove() {
+    if (this.state.audio && typeof this.state.audio.onUiMove === "function") {
+      this.state.audio.onUiMove();
+    }
+  }
+
+  _playUiConfirm() {
+    if (this.state.audio && typeof this.state.audio.onUiConfirm === "function") {
+      this.state.audio.onUiConfirm();
+    }
+  }
+
+  _playUiBack() {
+    if (this.state.audio && typeof this.state.audio.onUiBack === "function") {
+      this.state.audio.onUiBack();
+    }
+  }
+
+  _adjustAudioSetting(settingId, delta, label) {
+    const audio = this.state.audio;
+    if (!audio || typeof audio.adjustSetting !== "function") return;
+    const next = audio.adjustSetting(settingId, delta);
+    if (!Number.isFinite(next)) return;
+    this.state.message = `${label} volume: ${Math.round(next * 100)}%`;
+    this.state.messageTimer = 1.4;
   }
 
   _queueLevelLoad(levelIndex, initialStatus) {
@@ -561,6 +786,9 @@ class GameController {
     if (!target) return;
 
     this._spawnRockProjectile(playerCenter, target);
+    if (this.state.audio && typeof this.state.audio.onThrow === "function") {
+      this.state.audio.onThrow();
+    }
     this.throwCooldown = this.throwCooldownDuration;
     this.state.throwCharge = this._computeThrowCharge();
   }
@@ -634,6 +862,9 @@ class GameController {
     if (!Array.isArray(this.state.noiseEvents)) this.state.noiseEvents = [];
     this.state.noiseEvents.push(noiseEvent);
     this.state.noise = noiseEvent;
+    if (this.state.audio && typeof this.state.audio.onRockImpact === "function") {
+      this.state.audio.onRockImpact();
+    }
     this._spawnVfxEvent("hit", x, y, { scale: 0.95, alpha: 0.98 });
     this._spawnVfxEvent("dust", x, y + 4, { scale: 1.06, alpha: 0.9 });
   }
@@ -715,6 +946,14 @@ class GameController {
     const targetCenter = this._rectCenter(interaction.target);
 
     performInteraction(interaction, this.player, this.level, this.state);
+    if (this.state.audio && typeof this.state.audio.onInteraction === "function") {
+      this.state.audio.onInteraction(actionId, {
+        state: this.state,
+        level: this.level,
+        target: interaction.target || null,
+        targetCenter,
+      });
+    }
 
     if (actionId === "pickup-keycard" && !hadKeycard && this.state.hasKeycard && targetCenter) {
       this._spawnVfxEvent("sparkle", targetCenter.x, targetCenter.y - 6, { scale: 1.08, alpha: 0.98 });
@@ -752,6 +991,9 @@ class GameController {
       lift: 132,
       spinTurns: 4.8,
     };
+    if (this.state.audio && typeof this.state.audio.onExtractionStart === "function") {
+      this.state.audio.onExtractionStart();
+    }
     this._clearGameplayPrompt();
   }
 
@@ -762,6 +1004,9 @@ class GameController {
       this.state.playerState = "EXTRACTED";
       this.state.playerExtracted = true;
       this.player.hidden = true;
+      if (this.state.audio && typeof this.state.audio.onExtractionFinish === "function") {
+        this.state.audio.onExtractionFinish();
+      }
       return;
     }
 
@@ -774,6 +1019,9 @@ class GameController {
       this.state.playerExtracted = true;
       this.player.hidden = true;
       this.state.status = "won";
+      if (this.state.audio && typeof this.state.audio.onExtractionFinish === "function") {
+        this.state.audio.onExtractionFinish();
+      }
     }
   }
 

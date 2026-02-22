@@ -43,6 +43,9 @@ const STATE = {
   debugInfo: { guards: [] },
   menuOptionRects: [],
   levelOptionRects: [],
+  focusOptionRects: [],
+  audioSliderRects: [],
+  audio: null,
 };
 
 //downloading sprites
@@ -56,12 +59,6 @@ if (typeof listArtPackSpritePaths === "function") {
 }
 
 ASSET_MANAGER.downloadAll(() => {
-  // Backround music setup
-  const music = new Audio("assets/audio/Backround_music.wav");
-  music.preload = "auto";
-  music.loop = true;
-  music.volume = 0.4;
-
   const canvas = document.getElementById("gameWorld");
   const ctx = canvas.getContext("2d");
   const baseWidth = canvas.width;
@@ -97,39 +94,8 @@ ASSET_MANAGER.downloadAll(() => {
   // Make sure canvas receives keyboard events (GameEngine listens on canvas)
   canvas.focus();
   canvas.addEventListener("pointerdown", () => canvas.focus());
-
-  // Start music on the first user gesture that successfully resolves play().
-  let musicStarted = false;
-  const tryStartMusic = () => {
-    if (musicStarted) return;
-    const playResult = music.play();
-    if (playResult && typeof playResult.then === "function") {
-      playResult
-        .then(() => {
-          musicStarted = true;
-          detachAudioStartListeners();
-        })
-        .catch(() => {
-          // Keep listeners active so the next user gesture can try again.
-        });
-      return;
-    }
-
-    musicStarted = true;
-    detachAudioStartListeners();
-  };
-
-  const audioStartEvents = ["keydown", "pointerdown", "mousedown", "touchstart"];
-  const detachAudioStartListeners = () => {
-    for (const eventName of audioStartEvents) {
-      window.removeEventListener(eventName, tryStartMusic);
-    }
-  };
-
-  for (const eventName of audioStartEvents) {
-    window.addEventListener(eventName, tryStartMusic);
-  }
-
+  STATE.audio = new AudioSystem(STATE);
+  STATE.audio.installGestureUnlock();
 
   STATE.input = gameEngine.input || new Input(gameEngine);
   loadLevelSession(DEFAULT_LEVEL_INDEX, "splash");
@@ -153,6 +119,8 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   STATE.debugInfo = { guards: [] };
   STATE.menuOptionRects = [];
   STATE.levelOptionRects = [];
+  STATE.focusOptionRects = [];
+  STATE.audioSliderRects = [];
   STATE.menuIndex = clamp(Number(STATE.menuIndex) || 0, 0, 1);
   STATE.status = initialStatus;
   STATE.playerState = "NORMAL";

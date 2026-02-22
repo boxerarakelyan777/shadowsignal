@@ -66,6 +66,13 @@ Open:
 
 - **Move:** `WASD` or Arrow Keys  
 - **Interact / Hide toggle:** `E` (while standing on a hide spot)
+- **Pause:** `Esc`
+- **Audio mix (while paused):**
+  - `[` / `]` = Music down/up
+  - `-` / `=` = SFX down/up
+  - `,` / `.` = Footsteps down/up
+- **Menu/Pause/Win/Loss audio sliders:** drag `Music`, `SFX`, and `Footsteps` bars with mouse
+- **Menu shortcuts (Pause/Win/Loss):** `R` retry, `L` levels, `H` home, `C` credits
 
 ---
 
