@@ -247,14 +247,15 @@ class Guard {
       }
     }
 
-    if (isNewNoise && this.aiState !== "CHASE") {
+    const seesNow = (!playerHiddenNow) ? this.canSeePlayerDetailed() : null;
+    const canNoiseOverrideChase = this.aiState !== "CHASE" || !seesNow || !seesNow.sees;
+
+    if (isNewNoise && canNoiseOverrideChase) {
       this.aiState = "INVESTIGATE";
       this.investigateTarget = { x: heardNoise.x, y: heardNoise.y };
       this.investigatePauseTimer = 0;
       if (heardNoiseId >= 0) this.lastHeardNoiseId = heardNoiseId;
     }
-
-    const seesNow = (!playerHiddenNow) ? this.canSeePlayerDetailed() : null;
 
     if (!playerHiddenNow && seesNow) {
       if (seesNow.sees) {
@@ -677,14 +678,39 @@ class Guard {
   }
 
   _getHeardNoise(guardCenter) {
-    const noise = this.state.noise;
-    if (!noise) return null;
+    const events = Array.isArray(this.state.noiseEvents) && this.state.noiseEvents.length
+      ? this.state.noiseEvents
+      : (this.state.noise ? [this.state.noise] : []);
+    if (!events.length) return null;
 
-    const radius = numberOr(noise.radius, 0);
-    const dx = noise.x - guardCenter.x;
-    const dy = noise.y - guardCenter.y;
-    const dist = Math.hypot(dx, dy);
-    return dist <= radius ? noise : null;
+    let best = null;
+    let bestDist = Infinity;
+    let bestId = -Infinity;
+
+    for (const noise of events) {
+      if (!noise) continue;
+      const nx = Number(noise.x);
+      const ny = Number(noise.y);
+      const radius = numberOr(noise.radius, 0);
+      if (!Number.isFinite(nx) || !Number.isFinite(ny) || radius <= 0) continue;
+
+      const dx = nx - guardCenter.x;
+      const dy = ny - guardCenter.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > radius) continue;
+
+      const noiseId = numberOr(noise.id, -1);
+      const isCloser = dist < bestDist - 0.001;
+      const sameDistance = Math.abs(dist - bestDist) <= 0.001;
+      const isNewer = noiseId > bestId;
+      if (!best || isCloser || (sameDistance && isNewer)) {
+        best = noise;
+        bestDist = dist;
+        bestId = noiseId;
+      }
+    }
+
+    return best;
   }
 
   _speedForState() {

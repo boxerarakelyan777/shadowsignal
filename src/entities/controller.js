@@ -785,7 +785,9 @@ class GameController {
     const target = this._computeThrowTarget(playerCenter.x, playerCenter.y, worldPoint.x, worldPoint.y);
     if (!target) return;
 
-    this._spawnRockProjectile(playerCenter, target);
+    const didSpawn = this._spawnRockProjectile(playerCenter, target);
+    if (!didSpawn) return;
+
     if (this.state.audio && typeof this.state.audio.onThrow === "function") {
       this.state.audio.onThrow();
     }
@@ -797,7 +799,7 @@ class GameController {
     const dx = target.x - start.x;
     const dy = target.y - start.y;
     const dist = Math.hypot(dx, dy);
-    if (dist < 2) return;
+    if (dist < 2) return false;
 
     const duration = clamp(dist / Math.max(1, this.throwSpeed), 0.08, 0.52);
     const arcHeight = clamp(this.throwArcHeight + dist * 0.035, 10, 28);
@@ -816,6 +818,7 @@ class GameController {
       arc: 0,
       radius: 3,
     });
+    return true;
   }
 
   _updateRockProjectiles(dt) {
@@ -1116,23 +1119,13 @@ class GameController {
         this._lerp(fromY, rawTarget.y, t)
       );
 
-      if (typeof segmentIntersectsRect === "function") {
-        const a = { x: last.x, y: last.y };
-        const b = { x: sample.x, y: sample.y };
-        const walls = Array.isArray(this.level?.walls) ? this.level.walls : [];
-        let blocked = false;
-        for (const wall of walls) {
-          if (!wall) continue;
-          if (wall.componentType === "lockedDoor" && (wall.locked === false || wall.state === "OPEN")) continue;
-          if (segmentIntersectsRect(a, b, wall)) {
-            blocked = true;
-            break;
-          }
-        }
-        if (blocked) break;
+      if (this._segmentBlockedByWall(last, sample)) {
+        last = this._findLastClearPointOnSegment(last, sample);
+        break;
       }
 
       if (this._isPointInsideWall(sample.x, sample.y)) {
+        last = this._findLastClearPointOnSegment(last, sample);
         break;
       }
 
@@ -1140,6 +1133,46 @@ class GameController {
     }
 
     return last;
+  }
+
+  _segmentBlockedByWall(a, b) {
+    if (typeof segmentIntersectsRect !== "function") return false;
+
+    const walls = Array.isArray(this.level?.walls) ? this.level.walls : [];
+    for (const wall of walls) {
+      if (!wall) continue;
+      if (wall.componentType === "lockedDoor" && (wall.locked === false || wall.state === "OPEN")) continue;
+      if (segmentIntersectsRect(a, b, wall)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _findLastClearPointOnSegment(start, end) {
+    let best = this._clampPointToLevel(start.x, start.y);
+    let low = 0;
+    let high = 1;
+
+    // Bisection finds the nearest valid endpoint before a wall hit.
+    for (let i = 0; i < 9; i++) {
+      const mid = (low + high) * 0.5;
+      const candidate = this._clampPointToLevel(
+        this._lerp(start.x, end.x, mid),
+        this._lerp(start.y, end.y, mid)
+      );
+      const blocked = this._segmentBlockedByWall(start, candidate) ||
+        this._isPointInsideWall(candidate.x, candidate.y);
+
+      if (blocked) {
+        high = mid;
+      } else {
+        best = candidate;
+        low = mid;
+      }
+    }
+
+    return best;
   }
 
   _clampPointToLevel(x, y) {
