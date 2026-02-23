@@ -1,34 +1,53 @@
 class Animator {
-    constructor(spritesheet, frameWidth, frameHeight, frameDuration, frameCount){
+    constructor(spritesheet, frameWidth, frameHeight, frameDuration, frameCount, loop = true){
         this.spritesheet = spritesheet;
         this.frameWidth = frameWidth;
         this.frameHeight = frameHeight;
         this.frameDuration = frameDuration;
         this.frameCount = frameCount;
+        this.loop = loop;
         this.elapsedTime = 0;
         this.currentFrame = 0;
+        this.isComplete = false;
     }
 
-    update(deltaTime, isMoving){
-        if(!isMoving){
-            this.currentFrame = 0;
-            this.elapsedTime = 0;
+    update(deltaTime, isActive){
+        if (!isActive || this.isComplete) {
             return;
         }
     
         this.elapsedTime += deltaTime;
-        if(this.elapsedTime >= this.frameDuration){
-            this.currentFrame = (this.currentFrame + 1) % this.frameCount;
+        if (this.elapsedTime >= this.frameDuration) {
+            this.currentFrame++;
+            
+            if (this.currentFrame >= this.frameCount) {
+                if (this.loop) {
+                    this.currentFrame = 0; 
+                } else {
+                    this.currentFrame = this.frameCount - 1; 
+                    this.isComplete = true; 
+                }
+            }
             this.elapsedTime = 0;
         }
+    }
+
+    reset(){
+        this.currentFrame = 0;
+        this.elapsedTime = 0;
+        this.isComplete = false;
     }
 
     draw(ctx, x, y, width, height, direction){
         if(!this.spritesheet) return;
         
+        // Safety check: clamp direction to available rows
+        const maxRows = Math.floor(this.spritesheet.height / this.frameHeight);
+        const safeDirection = direction % maxRows;
+        
         // Calculate which frame to sample
         const srcX = this.currentFrame * this.frameWidth;  // Column (0-7)
-        const srcY = direction * this.frameHeight;         // Row (0-7)
+        const srcY = safeDirection * this.frameHeight;     // Row (0-7, clamped)
         
         ctx.drawImage(
             this.spritesheet,
@@ -41,7 +60,7 @@ class Animator {
 }
 
 function getDirectionIndex(dx, dy){
-    if(dx === 0 && dy === 0) return 0;
+    if(dx === 0 && dy === 0) return 3;
 
     const angle = Math.atan2(dy, dx);
     const directions = Math.round((angle + Math.PI) / (Math.PI / 4)) % 8;
@@ -61,4 +80,27 @@ function getDirectionIndex(dx, dy){
     };
 
     return directionMap[directions] || 3;
+}
+
+function getAttackDirectionIndex(dx, dy){
+    if(dx === 0 && dy === 0) return 4;
+
+    const angle = Math.atan2(dy, dx);
+    const directions = Math.round((angle + Math.PI) / (Math.PI / 4)) % 8;
+
+    // Attack sprite sheet row mapping (based on visual inspection)
+    // Row 0: N, Row 1: NE, Row 2: E, Row 3: SE
+    // Row 4: S, Row 5: SW, Row 6: W, Row 7: NW
+    const attackDirectionMap = {
+        0: 2,  // W → try row 2
+        1: 1,  // NW → try row 1
+        2: 0,  // N → try row 0
+        3: 7,  // NE → try row 7
+        4: 6,  // E → try row 6
+        5: 5,  // SE → try row 5
+        6: 4,  // S → try row 4
+        7: 3   // SW → try row 3
+    };
+
+    return attackDirectionMap[directions] || 4;
 }

@@ -50,6 +50,8 @@ const STATE = {
 
 //downloading sprites
 ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_walk.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_idle.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_attack.png");
 ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_walk.png");
 if (typeof listArtPackSpritePaths === "function") {
   const artPackPaths = listArtPackSpritePaths();
@@ -149,7 +151,9 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   gameEngine.keys = {};
   if (STATE.input) STATE.input.previousKeys = {};
 
-  const playerSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_walk.png");
+  const playerWalkSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_walk.png");
+  const playerIdleSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_idle.png");
+  const playerAttackSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_attack.png");
   const guardSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_walk.png");
   const artPackAssets = {};
   if (typeof listArtPackSpritePaths === "function") {
@@ -158,7 +162,14 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
       if (asset) artPackAssets[path] = asset;
     }
   }
-  const player = new Player(gameEngine, level, STATE, playerSprite);
+  const player = new Player(
+    gameEngine,
+    level,
+    STATE,
+    playerWalkSprite,
+    playerIdleSprite,
+    playerAttackSprite
+  );
   const guards = guardConfigs.map(
     (guardConfig, index) =>
       new Guard(gameEngine, level, STATE, player, guardConfig, index, guardSprite)

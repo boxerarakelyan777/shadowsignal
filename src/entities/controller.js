@@ -788,6 +788,19 @@ class GameController {
     const didSpawn = this._spawnRockProjectile(playerCenter, target);
     if (!didSpawn) return;
 
+    const dx = target.x - playerCenter.x;
+    const dy = target.y - playerCenter.y;
+    const dist = Math.hypot(dx, dy);
+    if (
+      dist > 0 &&
+      this.player &&
+      typeof this.player.triggerAttack === "function" &&
+      typeof getAttackDirectionIndex === "function"
+    ) {
+      const throwDir = getAttackDirectionIndex(dx / dist, dy / dist);
+      this.player.triggerAttack(throwDir);
+    }
+
     if (this.state.audio && typeof this.state.audio.onThrow === "function") {
       this.state.audio.onThrow();
     }

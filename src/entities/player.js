@@ -1,6 +1,6 @@
 // src/entities/player.js
 class Player {
-  constructor(game, level, state, spritesheet) {
+  constructor(game, level, state, walkSprite, idleSprite, attackSprite) {
     this.game = game;
     this.level = level;
     this.state = state;
@@ -21,20 +21,26 @@ class Player {
     this.lastDir = { x: 1, y: 0 };
     this.currentDirection = getDirectionIndex(this.lastDir.x, this.lastDir.y);
 
-
     this.removeFromWorld = false;
-
     this.isPlayer = true;
 
-    if (spritesheet) { // adds spritesheet if it exists
-      this.animator = new Animator(
-        spritesheet, 
-        64, 
-        64, 
-        0.1, 
-        8);
-    } else {
-      this.animator = null;
+    this.animState = "idle";
+    this.lastAnimState = "idle";
+    this.animations = {};
+
+    if (idleSprite) {
+      this.animations.idle = new Animator(idleSprite, 64, 64, 0.15, 12, true);
+    }
+    if (walkSprite) {
+      this.animations.walk = new Animator(walkSprite, 64, 64, 0.1, 8, true);
+    }
+    if (attackSprite) {
+      this.animations.attack = new Animator(attackSprite, 96, 96, 0.07, 7, false);
+    }
+
+    // Fallback so a missing idle sheet still renders an animated player.
+    if (!this.animations.idle && this.animations.walk) {
+      this.animations.idle = this.animations.walk;
     }
   }
 
@@ -49,8 +55,9 @@ class Player {
   update() {
     if (this.state.status !== "playing") return;
     if (this.state.playerState !== "NORMAL") return;
-    // If hidden, don't move (simple + clear)
-    if (this.hidden) return;
+    if (this.hidden) return; // If hidden, don't move.
+
+    const dt = this.game.clockTick;
 
     let vx = 0;
     let vy = 0;
@@ -59,24 +66,34 @@ class Player {
     if (this.game.keys["a"] || this.game.keys["ArrowLeft"]) vx -= 1;
     if (this.game.keys["d"] || this.game.keys["ArrowRight"]) vx += 1;
 
-    // Normalize diagonal (and any combined input)
     const isMoving = vx !== 0 || vy !== 0;
-    if(isMoving){
+    if (isMoving) {
       const len = Math.hypot(vx, vy);
       vx /= len;
       vy /= len;
       this.lastDir = { x: vx, y: vy };
-      this.currentDirection = getDirectionIndex(vx, vy); //sends the direction index
+      this.currentDirection = getDirectionIndex(vx, vy);
     }
 
-    const dt = this.game.clockTick;
     const dx = vx * this.speed * dt;
     const dy = vy * this.speed * dt;
-
     moveWithWalls(this, dx, dy, this.level.walls);
 
-    if(this.animator) {
-      this.animator.update(dt, isMoving);
+    const attackAnim = this.animations.attack;
+    const attackInProgress = this.animState === "attack" && attackAnim && !attackAnim.isComplete;
+    if (!attackInProgress) {
+      this.animState = isMoving ? "walk" : "idle";
+    }
+
+    if (this.animState !== this.lastAnimState) {
+      const animation = this._getCurrentAnimation();
+      if (animation) animation.reset();
+      this.lastAnimState = this.animState;
+    }
+
+    const currentAnim = this._getCurrentAnimation();
+    if (currentAnim) {
+      currentAnim.update(dt, true);
     }
 
     if (this.state.audio && typeof this.state.audio.onPlayerMovement === "function") {
@@ -88,6 +105,16 @@ class Player {
         this.state.playerState
       );
     }
+  }
+
+  triggerAttack(direction) {
+    if (!this.animations.attack) return;
+    this.animState = "attack";
+    if (Number.isFinite(direction)) {
+      this.currentDirection = direction;
+    }
+    this.animations.attack.reset();
+    this.lastAnimState = "attack";
   }
 
   draw(ctx) {
@@ -182,24 +209,7 @@ class Player {
       ctx.scale(scale, scale);
       ctx.globalAlpha *= (1 - 0.56 * finishEase);
 
-      if (this.animator) {
-        this.animator.draw(
-          ctx,
-          -this.w / 2 + this.drawOffsetX,
-          -this.h / 2 + this.drawOffsetY,
-          this.drawW,
-          this.drawH,
-          this.currentDirection ?? 0
-        );
-      } else {
-        ctx.fillStyle = "rgba(0,180,0,1)";
-        ctx.fillRect(
-          -this.w / 2 + this.drawOffsetX,
-          -this.h / 2 + this.drawOffsetY,
-          this.drawW,
-          this.drawH
-        );
-      }
+      this._drawCurrentAppearance(ctx, -this.w / 2, -this.h / 2);
 
       if (finishEase > 0) {
         ctx.fillStyle = `rgba(226, 250, 255, ${(0.4 * finishEase).toFixed(3)})`;
@@ -207,26 +217,54 @@ class Player {
         ctx.arc(0, 0, this.drawW * (0.44 + 0.46 * finishEase), 0, Math.PI * 2);
         ctx.fill();
       }
-    } else if (this.animator) {
-      this.animator.draw(
-        ctx,
-        this.x + this.drawOffsetX,
-        this.y + this.drawOffsetY,
-        this.drawW,
-        this.drawH,
-        this.currentDirection ?? 0
-      );
     } else {
-      ctx.fillStyle = this.hidden ? "rgba(0,150,0,0.6)" : "rgba(0,180,0,1)";
-      ctx.fillRect(
-        this.x + this.drawOffsetX,
-        this.y + this.drawOffsetY,
-        this.drawW,
-        this.drawH
-      );
+      this._drawCurrentAppearance(ctx, this.x, this.y);
     }
 
     ctx.restore();
+  }
+
+  _getCurrentAnimation() {
+    if (this.animState === "attack" && this.animations.attack) return this.animations.attack;
+    if (this.animState === "walk" && this.animations.walk) return this.animations.walk;
+    if (this.animState === "idle" && this.animations.idle) return this.animations.idle;
+    return this.animations.walk || this.animations.idle || null;
+  }
+
+  _resolveDrawMetrics() {
+    let displayW = this.drawW;
+    let displayH = this.drawH;
+    let offsetX = this.drawOffsetX;
+    let offsetY = this.drawOffsetY;
+
+    if (this.animState === "attack" && this.animations.attack) {
+      displayW = Math.round(this.drawW * 1.5);
+      displayH = Math.round(this.drawH * 1.5);
+      offsetX = (this.w - displayW) / 2;
+      offsetY = (this.h - displayH) / 2;
+    }
+
+    return { displayW, displayH, offsetX, offsetY };
+  }
+
+  _drawCurrentAppearance(ctx, baseX, baseY) {
+    const currentAnim = this._getCurrentAnimation();
+    const { displayW, displayH, offsetX, offsetY } = this._resolveDrawMetrics();
+
+    if (currentAnim) {
+      currentAnim.draw(
+        ctx,
+        baseX + offsetX,
+        baseY + offsetY,
+        displayW,
+        displayH,
+        this.currentDirection ?? 0
+      );
+      return;
+    }
+
+    ctx.fillStyle = this.hidden ? "rgba(0,150,0,0.6)" : "rgba(0,180,0,1)";
+    ctx.fillRect(baseX + this.drawOffsetX, baseY + this.drawOffsetY, this.drawW, this.drawH);
   }
 }
 
