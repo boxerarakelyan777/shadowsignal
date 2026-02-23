@@ -90,6 +90,10 @@ class GameController {
         const dy = worldY - py;
         const dist = Math.hypot(dx, dy);
         if (dist > 0) {
+          const throwDir = getAttackDirectionIndex(dx / dist, dy / dist); //calculates throw direction
+
+          this.player.triggerAttack(throwDir); //trigger attack animation
+
           const maxRange = 250;
           const t = dist > maxRange ? maxRange / dist : 1;
           const nx = px + dx * t;

@@ -24,7 +24,9 @@ const STATE = {
 
 //downloading sprites
 ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_walk.png");
-ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_walk.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_idle.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_attack.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_walk.png");  
 
 ASSET_MANAGER.downloadAll(() => {
   const canvas = document.getElementById("gameWorld");
@@ -70,10 +72,12 @@ ASSET_MANAGER.downloadAll(() => {
   STATE.input = new Input(gameEngine);
 
   //loading sprites
-  const playerSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_walk.png");
+  const playerWalkSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_walk.png");
+  const playerIdleSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_idle.png");
+  const playerAttackSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_attack.png");
   const guardSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_walk.png");
 
-  const player = new Player(gameEngine, level, STATE, playerSprite);
+  const player = new Player(gameEngine, level, STATE, playerWalkSprite, playerIdleSprite, playerAttackSprite);
   const guard = new Guard(gameEngine, level, STATE, player, guardSprite);
   const levelRenderer = new LevelRenderer(gameEngine, level, STATE);
   const controller = new GameController(gameEngine, STATE, level, player);
