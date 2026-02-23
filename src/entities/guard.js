@@ -247,8 +247,8 @@ class Guard {
       }
     }
 
-    const seesNow = (!playerHiddenNow) ? this.canSeePlayerDetailed() : null;
-    const canNoiseOverrideChase = this.aiState !== "CHASE" || !seesNow || !seesNow.sees;
+    const visionSample = (!playerHiddenNow) ? this.canSeePlayerDetailed() : null;
+    const canNoiseOverrideChase = this.aiState !== "CHASE" || !visionSample || !visionSample.sees;
 
     if (isNewNoise && canNoiseOverrideChase) {
       this.aiState = "INVESTIGATE";
@@ -257,11 +257,11 @@ class Guard {
       if (heardNoiseId >= 0) this.lastHeardNoiseId = heardNoiseId;
     }
 
-    if (!playerHiddenNow && seesNow) {
-      if (seesNow.sees) {
+    if (!playerHiddenNow && visionSample) {
+      if (visionSample.sees) {
         const rise = dt / Math.max(0.05, this.detectionTime);
         this.detection = clamp(this.detection + rise, 0, 1);
-        this.lastSeen = { x: seesNow.playerCenter.x, y: seesNow.playerCenter.y };
+        this.lastSeen = { x: visionSample.playerCenter.x, y: visionSample.playerCenter.y };
         this.lastSeenFacing = this.facing;
 
         if (this.detection >= 1) {
@@ -450,12 +450,11 @@ class Guard {
     debugInfo.inFov = false;
     debugInfo.hasLos = false;
 
-    if (!playerHiddenNow) {
-      const res = this.canSeePlayerDetailed();
-      debugInfo.inRange = res.inRange;
-      debugInfo.inFov = res.inFov;
-      debugInfo.hasLos = res.hasLos;
-      debugInfo.sees = res.sees;
+    if (!playerHiddenNow && visionSample) {
+      debugInfo.inRange = visionSample.inRange;
+      debugInfo.inFov = visionSample.inFov;
+      debugInfo.hasLos = visionSample.hasLos;
+      debugInfo.sees = visionSample.sees;
 
       if (this.aiState === "CHASE" && rectsIntersect(this, this.player)) {
         this.state.playerState = "CAPTURED";

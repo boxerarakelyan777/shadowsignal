@@ -3,13 +3,14 @@
 class Timer {
     constructor() {
         this.gameTime = 0;
-        this.maxStep = 0.05;
-        this.lastTimestamp = 0;
+        // Cap simulation delta to reduce visible "teleport" jumps on frame spikes.
+        this.maxStep = 1 / 30;
+        this.lastTimestamp = performance.now();
     };
 
     tick() {
-        const current = Date.now();
-        const delta = (current - this.lastTimestamp) / 1000;
+        const current = performance.now();
+        const delta = Math.max(0, (current - this.lastTimestamp) / 1000);
         this.lastTimestamp = current;
 
         const gameDelta = Math.min(delta, this.maxStep);

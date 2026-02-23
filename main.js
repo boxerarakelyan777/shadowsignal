@@ -6,6 +6,7 @@ const LEVEL_CATALOG = [
   { id: "test", name: "Test Sandbox", data: TEST_LEVEL },
 ];
 const DEFAULT_LEVEL_INDEX = 0;
+const MAX_RENDER_DPR = 1.75;
 
 // Simple game state shared by entities
 const STATE = {
@@ -66,9 +67,10 @@ ASSET_MANAGER.downloadAll(() => {
   const baseWidth = canvas.width;
   const baseHeight = canvas.height;
   const zoomFactor = 1.6;
+  let resizeRaf = 0;
 
   const resizeCanvas = () => {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR);
     const displayWidth = Math.floor(window.innerWidth);
     const displayHeight = Math.floor(window.innerHeight);
 
@@ -88,8 +90,16 @@ ASSET_MANAGER.downloadAll(() => {
     }
   };
 
-  window.addEventListener("resize", resizeCanvas);
-  window.addEventListener("orientationchange", resizeCanvas);
+  const scheduleResize = () => {
+    if (resizeRaf) return;
+    resizeRaf = window.requestAnimationFrame(() => {
+      resizeRaf = 0;
+      resizeCanvas();
+    });
+  };
+
+  window.addEventListener("resize", scheduleResize);
+  window.addEventListener("orientationchange", scheduleResize);
   gameEngine.init(ctx);
   resizeCanvas();
 

@@ -52,7 +52,7 @@ git checkout dev
 
 **Option A (Python — recommended):**
 ```bash
-python3 -m http.server 8000
+python3 scripts/dev_server.py 8000
 ```
 Open:
 - http://localhost:8000

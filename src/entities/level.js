@@ -26,6 +26,8 @@ class LevelRenderer {
     this.state = state;
     this.removeFromWorld = false;
     this.uiTime = 0;
+    this.viewCullPadding = 96;
+    this.patternCache = new WeakMap();
     this.artPack = (typeof ART_PACK !== "undefined") ? ART_PACK : null;
     this.artPackAssets = (artPackAssets && typeof artPackAssets === "object") ? artPackAssets : {};
     this.uiArt = this._loadUiArt(UI_ART_PATHS);
@@ -48,12 +50,16 @@ class LevelRenderer {
   }
 
   draw(ctx, game) {
-    this._drawWorld(ctx);
-    this._drawRockProjectiles(ctx);
-    this._drawNoisePulse(ctx);
-    this._drawWorldVfx(ctx);
-    this._drawExtractionWorldFx(ctx);
-    this._drawWorldPrompt(ctx);
+    const status = this.state.status;
+    const drawWorld = !["splash", "menu", "level_select", "credits", "loading"].includes(status);
+    if (drawWorld) {
+      this._drawWorld(ctx);
+      this._drawRockProjectiles(ctx);
+      this._drawNoisePulse(ctx);
+      this._drawWorldVfx(ctx);
+      this._drawExtractionWorldFx(ctx);
+      this._drawWorldPrompt(ctx);
+    }
 
     if (game && Array.isArray(game.overlayDrawFns)) {
       game.overlayDrawFns.push((overlayCtx, overlayGame) => {
@@ -75,10 +81,14 @@ class LevelRenderer {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    this.state.menuOptionRects = [];
-    this.state.levelOptionRects = [];
-    this.state.focusOptionRects = [];
-    this.state.audioSliderRects = [];
+    if (!Array.isArray(this.state.menuOptionRects)) this.state.menuOptionRects = [];
+    else this.state.menuOptionRects.length = 0;
+    if (!Array.isArray(this.state.levelOptionRects)) this.state.levelOptionRects = [];
+    else this.state.levelOptionRects.length = 0;
+    if (!Array.isArray(this.state.focusOptionRects)) this.state.focusOptionRects = [];
+    else this.state.focusOptionRects.length = 0;
+    if (!Array.isArray(this.state.audioSliderRects)) this.state.audioSliderRects = [];
+    else this.state.audioSliderRects.length = 0;
 
     if (status === "splash") {
       this._drawSceneBackground(ctx, cw, ch, "splash");
@@ -193,6 +203,7 @@ class LevelRenderer {
     const levelHeight = Math.max(1, this.level.height || 1);
     const floorVariant = this.level.floorVariant || "default";
     const floorVisual = this._getComponentVisual("floor", floorVariant);
+    const view = this._getWorldViewBounds(this.viewCullPadding);
 
     this._drawRectComponent(
       ctx,
@@ -201,21 +212,25 @@ class LevelRenderer {
       floorVariant,
       { skipBorder: true }
     );
-    this._drawWorldGrid(ctx, levelWidth, levelHeight, floorVisual);
+    this._drawWorldGrid(ctx, levelWidth, levelHeight, floorVisual, view);
 
     for (const w of this.level.walls || []) {
       if (!w) continue;
       const componentType = w.componentType || "wall";
       if (componentType !== "wall") continue;
+      if (!this._rectInView(w, view)) continue;
       this._drawRectComponent(ctx, w, "wall", w.variant || "default");
     }
 
     if (this.level.lockedDoor) {
-      this._drawLockedDoor(ctx, this.level.lockedDoor);
+      if (this._rectInView(this.level.lockedDoor, view)) {
+        this._drawLockedDoor(ctx, this.level.lockedDoor);
+      }
     }
 
     for (const h of this.level.hideSpots || []) {
       if (!h) continue;
+      if (!this._rectInView(h, view)) continue;
       const occupied = this.state.activeHideSpot === h || !!h.occupied;
       this._drawRectComponent(
         ctx,
@@ -227,41 +242,75 @@ class LevelRenderer {
     }
 
     if (this.level.terminal) {
-      const terminalVariant = this.state.objectiveComplete ? "complete" : "default";
-      this._drawRectComponent(ctx, this.level.terminal, "terminal", terminalVariant);
-      this._drawTerminalStateOverlay(ctx, this.level.terminal);
+      if (this._rectInView(this.level.terminal, view)) {
+        const terminalVariant = this.state.objectiveComplete ? "complete" : "default";
+        this._drawRectComponent(ctx, this.level.terminal, "terminal", terminalVariant);
+        this._drawTerminalStateOverlay(ctx, this.level.terminal);
+      }
     }
 
     if (this.level.keycard) {
-      this._drawKeycardPickup(ctx, this.level.keycard);
+      if (this._rectInView(this.level.keycard, view)) {
+        this._drawKeycardPickup(ctx, this.level.keycard);
+      }
     }
 
     if (this.level.exitZone) {
-      this._drawRectComponent(ctx, this.level.exitZone, "exitZone", this.level.exitZone.variant || "default");
+      if (this._rectInView(this.level.exitZone, view)) {
+        this._drawRectComponent(ctx, this.level.exitZone, "exitZone", this.level.exitZone.variant || "default");
+      }
     }
   }
 
-  _drawWorldGrid(ctx, width, height, floorVisual = null) {
+  _drawWorldGrid(ctx, width, height, floorVisual = null, view = null) {
     const gridSize = Math.max(8, Math.round(this._num(floorVisual?.gridSize, 64)));
+    const minX = Math.max(0, view ? view.x : 0);
+    const minY = Math.max(0, view ? view.y : 0);
+    const maxX = Math.min(width, view ? view.x + view.w : width);
+    const maxY = Math.min(height, view ? view.y + view.h : height);
+    const startX = Math.floor(minX / gridSize) * gridSize;
+    const startY = Math.floor(minY / gridSize) * gridSize;
+
     ctx.save();
     ctx.strokeStyle = floorVisual?.gridColor || "rgba(168, 205, 244, 0.04)";
     ctx.lineWidth = 1;
 
-    for (let x = 0; x <= width; x += gridSize) {
+    for (let x = startX; x <= maxX; x += gridSize) {
       ctx.beginPath();
-      ctx.moveTo(x + 0.5, 0);
-      ctx.lineTo(x + 0.5, height);
+      ctx.moveTo(x + 0.5, minY);
+      ctx.lineTo(x + 0.5, maxY);
       ctx.stroke();
     }
 
-    for (let y = 0; y <= height; y += gridSize) {
+    for (let y = startY; y <= maxY; y += gridSize) {
       ctx.beginPath();
-      ctx.moveTo(0, y + 0.5);
-      ctx.lineTo(width, y + 0.5);
+      ctx.moveTo(minX, y + 0.5);
+      ctx.lineTo(maxX, y + 0.5);
       ctx.stroke();
     }
 
     ctx.restore();
+  }
+
+  _getWorldViewBounds(padding = 0) {
+    const camera = this.game?.camera;
+    if (!camera) return null;
+    const zoom = Math.max(0.001, this._num(camera.zoom, 1));
+    const x = this._num(camera.x, 0) - padding;
+    const y = this._num(camera.y, 0) - padding;
+    const w = this._num(camera.width, 0) / zoom + padding * 2;
+    const h = this._num(camera.height, 0) / zoom + padding * 2;
+    return { x, y, w, h };
+  }
+
+  _rectInView(rect, view) {
+    if (!rect || !view) return true;
+    return !(
+      rect.x + rect.w < view.x ||
+      rect.x > view.x + view.w ||
+      rect.y + rect.h < view.y ||
+      rect.y > view.y + view.h
+    );
   }
 
   _updateDoorVisuals(dt) {
@@ -606,9 +655,8 @@ class LevelRenderer {
     ctx.save();
     if (spriteAlpha < 1) ctx.globalAlpha *= spriteAlpha;
     ctx.imageSmoothingEnabled = true;
-    if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
     if (visual.tileMode === "repeat") {
-      const pattern = ctx.createPattern(slot.image, "repeat");
+      const pattern = this._getRepeatPattern(ctx, slot.image);
       if (!pattern) {
         ctx.restore();
         return false;
@@ -658,6 +706,16 @@ class LevelRenderer {
 
     ctx.restore();
     return true;
+  }
+
+  _getRepeatPattern(ctx, image) {
+    if (!image) return null;
+    let pattern = this.patternCache.get(image) || null;
+    if (!pattern) {
+      pattern = ctx.createPattern(image, "repeat");
+      if (pattern) this.patternCache.set(image, pattern);
+    }
+    return pattern;
   }
 
   _createGradient(ctx, rect, stops, axis = "y") {
@@ -1918,7 +1976,7 @@ class LevelRenderer {
 
     ctx.save();
     ctx.shadowColor = style.glow || "rgba(89, 164, 214, 0.25)";
-    ctx.shadowBlur = 22;
+    ctx.shadowBlur = Math.max(0, this._num(style.shadowBlur, 14));
     ctx.fillStyle = fill;
     this._roundedRect(ctx, x, y, w, h, style.cornerRadius || 16);
     ctx.fill();

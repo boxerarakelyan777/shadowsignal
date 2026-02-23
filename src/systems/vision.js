@@ -69,7 +69,17 @@ function segmentIntersectsRect(a, b, r) {
 }
 
 function hasLineOfSight(fromPt, toPt, walls) {
+  if (!Array.isArray(walls) || !walls.length) return true;
+
+  const minX = Math.min(fromPt.x, toPt.x);
+  const minY = Math.min(fromPt.y, toPt.y);
+  const maxX = Math.max(fromPt.x, toPt.x);
+  const maxY = Math.max(fromPt.y, toPt.y);
+
   for (const w of walls) {
+    if (!w || !Number.isFinite(w.w) || !Number.isFinite(w.h) || w.w <= 0 || w.h <= 0) continue;
+    if (w.componentType === "lockedDoor" && (w.locked === false || w.state === "OPEN")) continue;
+    if (w.x > maxX || w.x + w.w < minX || w.y > maxY || w.y + w.h < minY) continue;
     if (segmentIntersectsRect(fromPt, toPt, w)) return false;
   }
   return true;

@@ -33,6 +33,7 @@ class GameEngine {
         };
         this.pendingSceneAction = null;
         this.overlayDrawFns = [];
+        this.playerEntity = null;
 
     };
 
@@ -42,6 +43,10 @@ class GameEngine {
         this.surfaceHeight = ctx.canvas.height;
         this.camera.width = ctx.canvas.width;
         this.camera.height = ctx.canvas.height;
+        this.ctx.imageSmoothingEnabled = true;
+        if ("imageSmoothingQuality" in this.ctx) {
+            this.ctx.imageSmoothingQuality = "medium";
+        }
         this.startInput();
         this.timer = new Timer();
     };
@@ -173,9 +178,6 @@ class GameEngine {
         ctx.scale(cam.zoom, cam.zoom);
         ctx.translate(-cam.x, -cam.y);
         ctx.imageSmoothingEnabled = true;
-        if ("imageSmoothingQuality" in ctx) {
-            ctx.imageSmoothingQuality = "high";
-        }
 
         // Draw latest things first 
         for (let i = this.entities.length - 1; i >= 0; i--) {
@@ -210,29 +212,48 @@ class GameEngine {
             }
         }
 
-        const player = this.entities.find(e => e.isPlayer);
+        let player = this.playerEntity;
+        if (!player || player.removeFromWorld || !this.entities.includes(player)) {
+            player = null;
+            for (let i = 0; i < this.entities.length; i++) {
+                const candidate = this.entities[i];
+                if (candidate && candidate.isPlayer && !candidate.removeFromWorld) {
+                    player = candidate;
+                    break;
+                }
+            }
+            this.playerEntity = player;
+        }
 
         if(player && this.level) {
-            const viewWidth = this.camera.width / this.camera.zoom;
-            const viewHeight = this.camera.height / this.camera.zoom;
+            const zoom = Math.max(0.001, this.camera.zoom);
+            const viewWidth = this.camera.width / zoom;
+            const viewHeight = this.camera.height / zoom;
+            const levelWidth = Math.max(0, Number(this.level.width || this.level.w || 0));
+            const levelHeight = Math.max(0, Number(this.level.height || this.level.h || 0));
 
             let targetX = player.x + player.w / 2 - viewWidth / 2;
             let targetY = player.y + player.h / 2 - viewHeight / 2;
-            
-            this.camera.x = clamp(
+
+            const clampedX = clamp(
                 targetX, 
                 0, 
-                Math.max(0, this.level.width - viewWidth)
+                Math.max(0, levelWidth - viewWidth)
             );
-            this.camera.y = clamp(
+            const clampedY = clamp(
                 targetY,
                 0,
-                Math.max(0, this.level.height - viewHeight)
+                Math.max(0, levelHeight - viewHeight)
             );
+
+            // Pixel-snap camera to reduce subpixel shimmer and perceived jitter.
+            this.camera.x = Math.round(clampedX * zoom) / zoom;
+            this.camera.y = Math.round(clampedY * zoom) / zoom;
         }
 
         for (let i = this.entities.length - 1; i >= 0; --i) {
             if (this.entities[i].removeFromWorld) {
+                if (this.entities[i] === this.playerEntity) this.playerEntity = null;
                 this.entities.splice(i, 1);
             }
         }
