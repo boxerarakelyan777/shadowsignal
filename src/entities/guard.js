@@ -1,6 +1,6 @@
 // src/entities/guard.js
 class Guard {
-  constructor(game, level, state, player, guardConfig = null, guardId = 0, spritesheet = null) {
+  constructor(game, level, state, player, guardConfig = null, guardId = 0, spriteSet = null) {
     this.game = game;
     this.level = level;
     this.state = state;
@@ -190,16 +190,23 @@ class Guard {
     if (!this.state.debugInfo) this.state.debugInfo = {};
     if (!Array.isArray(this.state.debugInfo.guards)) this.state.debugInfo.guards = [];
 
-    if (spritesheet) {
-      this.animator = new Animator(
-        spritesheet,
-        64,
-        64,
-        0.12,
-        8
-      );
-    } else {
-      this.animator = null;
+    this.animState = "idle";
+    this.lastAnimState = "idle";
+    this.animations = {};
+
+    const guardSprites = resolveGuardSpriteSet(spriteSet);
+    if (guardSprites.walk) {
+      this.animations.walk = new Animator(guardSprites.walk, 64, 64, 0.12, 8, true);
+    }
+    if (guardSprites.idle) {
+      this.animations.idle = new Animator(guardSprites.idle, 64, 64, 0.15, 12, true);
+    }
+    if (guardSprites.attack) {
+      this.animations.attack = new Animator(guardSprites.attack, 96, 96, 0.07, 7, false);
+    }
+
+    if (!this.animations.idle && this.animations.walk) {
+      this.animations.idle = this.animations.walk;
     }
   }
 
@@ -421,8 +428,16 @@ class Guard {
       }
     }
 
-    if (this.animator) {
-      this.animator.update(dt, isMoving);
+    this._updateAnimationState(isMoving);
+    const currentAnim = this._getCurrentAnimation();
+    if (currentAnim) {
+      const shouldAnimate = this.animState === "walk" ||
+        this.animState === "attack" ||
+        (this.animState === "idle" && this.animations.idle !== this.animations.walk);
+      currentAnim.update(dt, shouldAnimate);
+      if (this.animState === "attack" && currentAnim.isComplete) {
+        this.animState = isMoving ? "walk" : "idle";
+      }
     }
 
     if (this.state.audio && typeof this.state.audio.onGuardMovement === "function") {
@@ -457,6 +472,11 @@ class Guard {
       debugInfo.sees = visionSample.sees;
 
       if (this.aiState === "CHASE" && rectsIntersect(this, this.player)) {
+        if (this.animations.attack) {
+          this.animState = "attack";
+          this.lastAnimState = "attack";
+          this.animations.attack.reset();
+        }
         this.state.playerState = "CAPTURED";
         this.state.status = "lost";
         this.state.lastCaptureByGuardId = this.guardId;
@@ -496,8 +516,15 @@ class Guard {
   draw(ctx) {
     const nonGameplayScreens = ["splash", "menu", "level_select", "credits", "loading"];
     if (nonGameplayScreens.includes(this.state.status)) return;
-    if (this.animator) {
-      this.animator.draw(
+
+    const g = centerOf(this);
+    this._drawVisionCone(ctx, g);
+
+    const currentAnim = this._getCurrentAnimation();
+    if (currentAnim) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      currentAnim.draw(
         ctx,
         this.x + this.drawOffsetX,
         this.y + this.drawOffsetY,
@@ -505,6 +532,7 @@ class Guard {
         this.drawH,
         this.currentDirection
       );
+      ctx.restore();
     } else {
       ctx.fillStyle = this._bodyColor();
       ctx.fillRect(
@@ -515,23 +543,9 @@ class Guard {
       );
     }
 
-    const g = centerOf(this);
-    const left = this.facing - this.fov / 2;
-    const right = this.facing + this.fov / 2;
+    this._drawStateBeacon(ctx, g);
 
-    ctx.save();
-    const cone = this._coneVisual();
-    ctx.globalAlpha = cone.alpha;
-    ctx.fillStyle = cone.color;
-    ctx.beginPath();
-    ctx.moveTo(g.x, g.y);
-    ctx.lineTo(g.x + Math.cos(left) * this.visionRange, g.y + Math.sin(left) * this.visionRange);
-    ctx.lineTo(g.x + Math.cos(right) * this.visionRange, g.y + Math.sin(right) * this.visionRange);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    if (!(this.player.hidden || this.state.playerState === "HIDDEN")) {
+    if (this.state.debug && !(this.player.hidden || this.state.playerState === "HIDDEN")) {
       const res = this.canSeePlayerDetailed();
       if (res.inRange && res.inFov) {
         ctx.save();
@@ -576,9 +590,13 @@ class Guard {
 
     this._actionStuckTimer = 0;
 
-    if (this.animator) {
-      this.animator.currentFrame = 0;
-      this.animator.elapsedTime = 0;
+    this.animState = "idle";
+    this.lastAnimState = "idle";
+    for (const animation of Object.values(this.animations)) {
+      if (!animation) continue;
+      animation.currentFrame = 0;
+      animation.elapsedTime = 0;
+      animation.isComplete = false;
     }
   }
 
@@ -720,6 +738,79 @@ class Guard {
     return this.patrolSpeed;
   }
 
+  _updateAnimationState(isMoving) {
+    const capturedByThisGuard = this.state.status === "lost" && this.state.lastCaptureByGuardId === this.guardId;
+    const nextState = capturedByThisGuard && this.animations.attack
+      ? "attack"
+      : (isMoving ? "walk" : "idle");
+
+    if (nextState !== this.animState) {
+      this.animState = nextState;
+      const animation = this._getCurrentAnimation();
+      if (animation) animation.reset();
+    }
+    this.lastAnimState = this.animState;
+  }
+
+  _getCurrentAnimation() {
+    if (this.animState === "attack" && this.animations.attack) return this.animations.attack;
+    if (this.animState === "walk" && this.animations.walk) return this.animations.walk;
+    if (this.animState === "idle" && this.animations.idle) return this.animations.idle;
+    return this.animations.walk || this.animations.idle || this.animations.attack || null;
+  }
+
+  _drawVisionCone(ctx, guardCenter) {
+    const cone = this._coneVisual();
+    const left = this.facing - this.fov / 2;
+    const right = this.facing + this.fov / 2;
+
+    ctx.save();
+    const radial = ctx.createRadialGradient(
+      guardCenter.x,
+      guardCenter.y,
+      8,
+      guardCenter.x,
+      guardCenter.y,
+      this.visionRange
+    );
+    radial.addColorStop(0, cone.near);
+    radial.addColorStop(0.64, cone.mid);
+    radial.addColorStop(1, cone.far);
+    ctx.fillStyle = radial;
+    ctx.beginPath();
+    ctx.moveTo(guardCenter.x, guardCenter.y);
+    ctx.arc(guardCenter.x, guardCenter.y, this.visionRange, left, right);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = cone.edge;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(guardCenter.x, guardCenter.y, this.visionRange, left, right);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  _drawStateBeacon(ctx, guardCenter) {
+    const cone = this._coneVisual();
+    const y = guardCenter.y - this.drawH * 0.3;
+    const time = numberOr(this.game?.timer?.gameTime, 0);
+    const pulse = 0.76 + 0.24 * Math.sin(time * 7.6 + this.guardId);
+
+    ctx.save();
+    ctx.fillStyle = cone.beaconFill;
+    ctx.beginPath();
+    ctx.arc(guardCenter.x, y, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = cone.beaconStroke;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(guardCenter.x, y, 3.8 + pulse * 1.2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   _bodyColor() {
     if (this.aiState === "CHASE") return "rgba(220,40,40,1)";
     if (this.aiState === "SEARCH") return "rgba(230,70,50,1)";
@@ -729,11 +820,44 @@ class Guard {
   }
 
   _coneVisual() {
-    if (this.aiState === "CHASE") return { color: "rgba(255,90,70,1)", alpha: 0.34 };
-    if (this.aiState === "SEARCH") return { color: "rgba(255,120,70,1)", alpha: 0.30 };
-    if (this.aiState === "INVESTIGATE") return { color: "rgba(255,170,60,1)", alpha: 0.24 };
-    if (this.detection > 0.01) return { color: "rgba(255,190,40,1)", alpha: 0.22 };
-    return { color: "rgba(255,200,0,1)", alpha: 0.16 };
+    if (this.aiState === "CHASE") {
+      return {
+        near: "rgba(255, 126, 102, 0.16)",
+        mid: "rgba(255, 96, 74, 0.11)",
+        far: "rgba(255, 86, 66, 0.025)",
+        edge: "rgba(255, 145, 126, 0.28)",
+        beaconFill: "rgba(255, 118, 96, 0.84)",
+        beaconStroke: "rgba(255, 176, 160, 0.52)",
+      };
+    }
+    if (this.aiState === "SEARCH") {
+      return {
+        near: "rgba(255, 146, 94, 0.14)",
+        mid: "rgba(255, 126, 82, 0.1)",
+        far: "rgba(255, 118, 74, 0.022)",
+        edge: "rgba(255, 176, 128, 0.25)",
+        beaconFill: "rgba(255, 151, 106, 0.82)",
+        beaconStroke: "rgba(255, 210, 170, 0.5)",
+      };
+    }
+    if (this.aiState === "INVESTIGATE" || this.detection > 0.01) {
+      return {
+        near: "rgba(255, 196, 96, 0.12)",
+        mid: "rgba(255, 170, 80, 0.085)",
+        far: "rgba(255, 156, 72, 0.02)",
+        edge: "rgba(255, 208, 134, 0.22)",
+        beaconFill: "rgba(255, 202, 112, 0.8)",
+        beaconStroke: "rgba(255, 231, 174, 0.46)",
+      };
+    }
+    return {
+      near: "rgba(255, 214, 94, 0.08)",
+      mid: "rgba(255, 199, 84, 0.06)",
+      far: "rgba(255, 182, 74, 0.016)",
+      edge: "rgba(255, 214, 129, 0.18)",
+      beaconFill: "rgba(255, 214, 114, 0.74)",
+      beaconStroke: "rgba(255, 238, 186, 0.4)",
+    };
   }
 
   _getDebugSlot() {
@@ -747,4 +871,24 @@ class Guard {
 function numberOr(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function resolveGuardSpriteSet(spriteSet) {
+  if (!spriteSet) return { walk: null, idle: null, attack: null };
+
+  const hasSetShape = typeof spriteSet === "object" &&
+    ("walk" in spriteSet || "idle" in spriteSet || "attack" in spriteSet);
+  if (hasSetShape) {
+    return {
+      walk: spriteSet.walk || null,
+      idle: spriteSet.idle || null,
+      attack: spriteSet.attack || null,
+    };
+  }
+
+  return {
+    walk: spriteSet,
+    idle: null,
+    attack: null,
+  };
 }

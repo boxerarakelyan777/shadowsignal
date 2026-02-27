@@ -1,12 +1,14 @@
 const gameEngine = new GameEngine({ debugging: false });
 const ASSET_MANAGER = new AssetManager();
 const LEVEL_CATALOG = [
+  { id: "nova", name: "Operation Nova", data: NOVA_LEVEL },
   { id: "prototype", name: "Prototype Facility", data: PROTOTYPE_LEVEL },
   { id: "tutorial", name: "Training Facility", data: FIRST_LEVEL },
   { id: "test", name: "Test Sandbox", data: TEST_LEVEL },
 ];
 const DEFAULT_LEVEL_INDEX = 0;
-const MAX_RENDER_DPR = 1.75;
+const MAX_RENDER_DPR = 1.5;
+const MAX_RENDER_PIXELS = 2560 * 1440;
 
 // Simple game state shared by entities
 const STATE = {
@@ -54,16 +56,24 @@ ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_walk.png");
 ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_idle.png");
 ASSET_MANAGER.queueDownload("./assets/sprites/characters/player_attack.png");
 ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_walk.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_idle.png");
+ASSET_MANAGER.queueDownload("./assets/sprites/characters/guard_attack.png");
 if (typeof listArtPackSpritePaths === "function") {
   const artPackPaths = listArtPackSpritePaths();
   for (const path of artPackPaths) {
     ASSET_MANAGER.queueDownload(path);
   }
 }
+if (typeof listComponentSpritePaths === "function") {
+  const componentPaths = listComponentSpritePaths();
+  for (const path of componentPaths) {
+    ASSET_MANAGER.queueDownload(path);
+  }
+}
 
 ASSET_MANAGER.downloadAll(() => {
   const canvas = document.getElementById("gameWorld");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true }) || canvas.getContext("2d");
   const baseWidth = canvas.width;
   const baseHeight = canvas.height;
   const zoomFactor = 1.6;
@@ -73,11 +83,19 @@ ASSET_MANAGER.downloadAll(() => {
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR);
     const displayWidth = Math.floor(window.innerWidth);
     const displayHeight = Math.floor(window.innerHeight);
+    const desiredWidth = Math.max(1, Math.floor(displayWidth * dpr));
+    const desiredHeight = Math.max(1, Math.floor(displayHeight * dpr));
+    const desiredPixels = desiredWidth * desiredHeight;
+    const renderScale = desiredPixels > MAX_RENDER_PIXELS
+      ? Math.sqrt(MAX_RENDER_PIXELS / desiredPixels)
+      : 1;
+    const internalWidth = Math.max(1, Math.floor(desiredWidth * renderScale));
+    const internalHeight = Math.max(1, Math.floor(desiredHeight * renderScale));
 
     canvas.style.width = `${displayWidth}px`;
     canvas.style.height = `${displayHeight}px`;
-    canvas.width = Math.floor(displayWidth * dpr);
-    canvas.height = Math.floor(displayHeight * dpr);
+    canvas.width = internalWidth;
+    canvas.height = internalHeight;
 
     if (gameEngine.ctx) {
       gameEngine.surfaceWidth = canvas.width;
@@ -85,7 +103,8 @@ ASSET_MANAGER.downloadAll(() => {
       gameEngine.camera.width = canvas.width;
       gameEngine.camera.height = canvas.height;
       const scale = Math.min(canvas.width / baseWidth, canvas.height / baseHeight);
-      gameEngine.camera.zoom = scale * zoomFactor;
+      const rawZoom = scale * zoomFactor;
+      gameEngine.camera.zoom = Math.max(0.25, Math.round(rawZoom * 8) / 8);
       gameEngine.ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
   };
@@ -164,12 +183,23 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   const playerWalkSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_walk.png");
   const playerIdleSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_idle.png");
   const playerAttackSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/player_attack.png");
-  const guardSprite = ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_walk.png");
+  const guardSprites = {
+    walk: ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_walk.png"),
+    idle: ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_idle.png"),
+    attack: ASSET_MANAGER.getAsset("./assets/sprites/characters/guard_attack.png"),
+  };
   const artPackAssets = {};
   if (typeof listArtPackSpritePaths === "function") {
     for (const path of listArtPackSpritePaths()) {
       const asset = ASSET_MANAGER.getAsset(path);
       if (asset) artPackAssets[path] = asset;
+    }
+  }
+  const componentAssets = {};
+  if (typeof listComponentSpritePaths === "function") {
+    for (const path of listComponentSpritePaths()) {
+      const asset = ASSET_MANAGER.getAsset(path);
+      if (asset) componentAssets[path] = asset;
     }
   }
   const player = new Player(
@@ -182,9 +212,9 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   );
   const guards = guardConfigs.map(
     (guardConfig, index) =>
-      new Guard(gameEngine, level, STATE, player, guardConfig, index, guardSprite)
+      new Guard(gameEngine, level, STATE, player, guardConfig, index, guardSprites)
   );
-  const levelRenderer = new LevelRenderer(gameEngine, level, STATE, artPackAssets);
+  const levelRenderer = new LevelRenderer(gameEngine, level, STATE, artPackAssets, componentAssets);
   const controller = new GameController(gameEngine, STATE, level, player, {
     scheduleLevelLoad,
     levelCatalog: LEVEL_CATALOG,
