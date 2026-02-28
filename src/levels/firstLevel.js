@@ -58,7 +58,14 @@ const FIRST_LEVEL_GUARDS = [
 const FIRST_LEVEL = {
   width: 3400,
   height: 1400,
-  floorVariant: "default",
+  floorVariant: "ops",
+  wallVariant: "reinforced",
+  floorZones: [
+    { id: "spawn", role: "spawn", variant: "concrete", x: 24, y: 360, w: 760, h: 674, priority: 40 },
+    { id: "corridor", role: "corridor", variant: "ops", flow: "east", x: 24, y: 560, w: 1892, h: 280, priority: 20 },
+    { id: "secure_wing", role: "secure", variant: "secure", x: 1916, y: 420, w: 1460, h: 614, priority: 15 },
+    { id: "terminal_room", role: "terminal", variant: "ops", x: 2860, y: 460, w: 500, h: 300, priority: 60 },
+  ],
 
   playerSpawn: { x: 120, y: 700 },
 

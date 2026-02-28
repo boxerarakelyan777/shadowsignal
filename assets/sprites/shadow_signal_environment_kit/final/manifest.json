@@ -1,0 +1,63 @@
+{
+  "floors": {
+    "base_ops": [
+      "final/floors/base/ops/floor_ops_base_01.png",
+      "final/floors/base/ops/floor_ops_base_02.png",
+      "final/floors/base/ops/floor_ops_base_03.png",
+      "final/floors/base/ops/floor_ops_base_04.png"
+    ],
+    "base_concrete": [
+      "final/floors/base/concrete/floor_concrete_base_01.png",
+      "final/floors/base/concrete/floor_concrete_base_02.png",
+      "final/floors/base/concrete/floor_concrete_base_03.png",
+      "final/floors/base/concrete/floor_concrete_base_04.png"
+    ],
+    "base_secure": [
+      "final/floors/base/secure/floor_secure_base_01.png",
+      "final/floors/base/secure/floor_secure_base_02.png",
+      "final/floors/base/secure/floor_secure_base_03.png",
+      "final/floors/base/secure/floor_secure_base_04.png"
+    ],
+    "macro_ops": [
+      "final/floors/macro/ops/floor_macro_ops_01.png",
+      "final/floors/macro/ops/floor_macro_ops_02.png"
+    ],
+    "macro_concrete": [
+      "final/floors/macro/concrete/floor_macro_concrete_01.png",
+      "final/floors/macro/concrete/floor_macro_concrete_02.png"
+    ],
+    "macro_secure": [
+      "final/floors/macro/secure/floor_macro_secure_01.png",
+      "final/floors/macro/secure/floor_macro_secure_02.png"
+    ],
+    "transition_ops_to_concrete": "final/floors/transitions/floor_transition_ops_to_concrete.png",
+    "transition_concrete_to_secure": "final/floors/transitions/floor_transition_concrete_to_secure.png",
+    "decals_common": "final/floors/decals/floor_decals_common.png",
+    "markings_hazard": "final/floors/markings/floor_markings_hazard.png"
+  },
+  "walls": {
+    "default": [
+      "final/walls/base/default/wall_panel_default_01.png",
+      "final/walls/base/default/wall_panel_default_02.png",
+      "final/walls/base/default/wall_panel_default_03.png"
+    ],
+    "bulkhead": [
+      "final/walls/base/bulkhead/wall_panel_bulkhead_01.png",
+      "final/walls/base/bulkhead/wall_panel_bulkhead_02.png",
+      "final/walls/base/bulkhead/wall_panel_bulkhead_03.png"
+    ],
+    "reinforced": [
+      "final/walls/base/reinforced/wall_panel_reinforced_01.png",
+      "final/walls/base/reinforced/wall_panel_reinforced_02.png",
+      "final/walls/base/reinforced/wall_panel_reinforced_03.png"
+    ],
+    "trim": "final/walls/trim/wall_trim_light_dark.png",
+    "decals": "final/walls/decals/wall_decals_industrial.png",
+    "grounding_strip": "final/walls/grounding/wall_base_shadow_strip.png",
+    "corner_ao": "final/walls/ao/corner_ao_set.png"
+  },
+  "notes": {
+    "tiling": "All base & macro tiles are seamless. Decal/AO atlases are transparent overlays.",
+    "transitions": "Each transition atlas is 4x4 of 128px tiles (512x512). Use edges/corners between zones."
+  }
+}

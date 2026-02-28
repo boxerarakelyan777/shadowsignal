@@ -19,7 +19,14 @@ const PROTOTYPE_GUARD = createGuard({
 const PROTOTYPE_LEVEL = {
   width: 3000,
   height: 900,
-  floorVariant: "default",
+  floorVariant: "ops",
+  wallVariant: "bulkhead",
+  floorZones: [
+    { id: "spawn", role: "spawn", variant: "concrete", x: 20, y: 180, w: 620, h: 540, priority: 40 },
+    { id: "corridor", role: "corridor", variant: "ops", flow: "east", x: 620, y: 330, w: 780, h: 260, priority: 20 },
+    { id: "secure_wing", role: "secure", variant: "secure", x: 1400, y: 240, w: 1580, h: 440, priority: 15 },
+    { id: "terminal_room", role: "terminal", variant: "ops", x: 2240, y: 300, w: 560, h: 260, priority: 60 },
+  ],
 
   playerSpawn: { x: 120, y: 420 },
 

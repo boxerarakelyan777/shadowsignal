@@ -15,6 +15,12 @@ const TEST_LEVEL = {
   width: 1024,
   height: 768,
   floorVariant: "default",
+  wallVariant: "default",
+  floorZones: [
+    { id: "spawn", role: "spawn", variant: "concrete", x: 0, y: 0, w: 540, h: 768, priority: 30 },
+    { id: "corridor", role: "corridor", variant: "ops", flow: "south", x: 540, y: 0, w: 484, h: 768, priority: 20 },
+    { id: "secure_corner", role: "secure", variant: "secure", x: 740, y: 0, w: 284, h: 340, priority: 40 },
+  ],
 
   playerSpawn: { x: 240, y: 240 },
 
