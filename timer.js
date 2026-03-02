@@ -3,8 +3,8 @@
 class Timer {
     constructor() {
         this.gameTime = 0;
-        // Cap simulation delta to reduce visible "teleport" jumps on frame spikes.
-        this.maxStep = 1 / 30;
+        // Allow slower machines to keep simulation speed closer to real time on frame drops.
+        this.maxStep = 1 / 20;
         this.lastTimestamp = performance.now();
     };
 

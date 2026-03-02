@@ -252,6 +252,8 @@ class Player {
     const { displayW, displayH, offsetX, offsetY } = this._resolveDrawMetrics();
 
     if (currentAnim) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
       currentAnim.draw(
         ctx,
         baseX + offsetX,
@@ -260,6 +262,7 @@ class Player {
         displayH,
         this.currentDirection ?? 0
       );
+      ctx.restore();
       return;
     }
 

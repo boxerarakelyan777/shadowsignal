@@ -34,6 +34,9 @@ class GameEngine {
         this.pendingSceneAction = null;
         this.overlayDrawFns = [];
         this.playerEntity = null;
+        this.fps = 60;
+        this.frameMs = 1000 / 60;
+        this._lastLoopTimestamp = performance.now();
 
     };
 
@@ -43,9 +46,9 @@ class GameEngine {
         this.surfaceHeight = ctx.canvas.height;
         this.camera.width = ctx.canvas.width;
         this.camera.height = ctx.canvas.height;
-        this.ctx.imageSmoothingEnabled = true;
+        this.ctx.imageSmoothingEnabled = false;
         if ("imageSmoothingQuality" in this.ctx) {
-            this.ctx.imageSmoothingQuality = "medium";
+            this.ctx.imageSmoothingQuality = "high";
         }
         this.startInput();
         this.timer = new Timer();
@@ -177,7 +180,7 @@ class GameEngine {
         ctx.save();
         ctx.scale(cam.zoom, cam.zoom);
         ctx.translate(-cam.x, -cam.y);
-        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingEnabled = false;
 
         // Draw latest things first 
         for (let i = this.entities.length - 1; i >= 0; i--) {
@@ -260,6 +263,12 @@ class GameEngine {
     };
 
     loop() {
+        const now = performance.now();
+        const rawFrameMs = Math.max(1, now - this._lastLoopTimestamp);
+        this._lastLoopTimestamp = now;
+        this.frameMs = this.frameMs * 0.9 + rawFrameMs * 0.1;
+        this.fps = 1000 / this.frameMs;
+
         this.clockTick = this.timer.tick();
         this.update();
         this.draw();
