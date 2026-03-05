@@ -65,7 +65,10 @@ class Guard {
 
     this.fov = (fovDeg * Math.PI) / 180;
 
-    this.waypoints = Array.isArray(fallbackConfig.waypoints) ? fallbackConfig.waypoints : [];
+    const rawWaypoints = Array.isArray(fallbackConfig.waypoints) ? fallbackConfig.waypoints : [];
+    this.waypoints = rawWaypoints
+      .map(point => ({ x: Number(point?.x), y: Number(point?.y) }))
+      .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
     this.wpIndex = numberOr(fallbackConfig.startWpIndex, 0);
     if (this.waypoints.length) {
       this.wpIndex = Math.max(0, Math.min(this.waypoints.length - 1, this.wpIndex));
@@ -83,6 +86,10 @@ class Guard {
     this.waypointReachDistance = numberOr(
       fallbackConfig.waypointReachDistance,
       numberOr(guardDefaults.waypointReachDistance, 8)
+    );
+    this.closeDetectRange = numberOr(
+      fallbackConfig.closeDetectRange,
+      numberOr(guardDefaults.closeDetectRange, 54)
     );
     this.stuckMoveThreshold = numberOr(
       fallbackConfig.stuckMoveThreshold,
@@ -183,6 +190,11 @@ class Guard {
       fallbackConfig.actionStuckTimeout,
       numberOr(guardDefaults.actionStuckTimeout, 0.85)
     );
+    this._chaseStuckTimer = 0;
+    this.unstickProbeScale = numberOr(
+      fallbackConfig.unstickProbeScale,
+      numberOr(guardDefaults.unstickProbeScale, 0.85)
+    );
 
     this.removeFromWorld = false;
     this.isGuard = true;
@@ -266,8 +278,12 @@ class Guard {
 
     if (!playerHiddenNow && visionSample) {
       if (visionSample.sees) {
-        const rise = dt / Math.max(0.05, this.detectionTime);
-        this.detection = clamp(this.detection + rise, 0, 1);
+        if (visionSample.closeDetect) {
+          this.detection = 1;
+        } else {
+          const rise = dt / Math.max(0.05, this.detectionTime);
+          this.detection = clamp(this.detection + rise, 0, 1);
+        }
         this.lastSeen = { x: visionSample.playerCenter.x, y: visionSample.playerCenter.y };
         this.lastSeenFacing = this.facing;
 
@@ -361,12 +377,19 @@ class Guard {
         const oldY = this.y;
         moveWithWalls(this, mx, my, this.level.walls);
 
-        const moved = Math.hypot(this.x - oldX, this.y - oldY);
+        let moved = Math.hypot(this.x - oldX, this.y - oldY);
+        if (moved < this.stuckMoveThreshold) {
+          const recovered = this._attemptRecoveryMove(dirX, dirY, target, dt);
+          if (recovered > moved) moved = recovered;
+        }
+        const nextCenter = centerOf(this);
+        const nextDist = Math.hypot(target.x - nextCenter.x, target.y - nextCenter.y);
+        const madeProgress = (dist - nextDist) > 0.1;
         isMoving = moved > this.stuckMoveThreshold;
 
         if (
-          this.aiState === "PATROL" &&
-          moved < this.stuckMoveThreshold &&
+          (this.aiState === "PATROL" || this.aiState === "RETURN") &&
+          (moved < this.stuckMoveThreshold || !madeProgress) &&
           this.waypoints.length
         ) {
           this._stuckTimer += dt;
@@ -374,12 +397,31 @@ class Guard {
             this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
             this._stuckTimer = 0;
           }
-        } else if (this.aiState === "PATROL") {
+        } else if (this.aiState === "PATROL" || this.aiState === "RETURN") {
           this._stuckTimer = 0;
         }
 
+        if (this.aiState === "CHASE") {
+          if (moved < this.stuckMoveThreshold || !madeProgress) {
+            this._chaseStuckTimer += dt;
+            if (this._chaseStuckTimer > this._actionStuckTimeout) {
+              const stillSeesPlayer = !!(visionSample && visionSample.sees);
+              if (!stillSeesPlayer) {
+                if (this.lastSeen) {
+                  this._enterSearch(this.lastSeen, this.lastSeenFacing, null);
+                } else {
+                  this.aiState = "RETURN";
+                }
+              }
+              this._chaseStuckTimer = 0;
+            }
+          } else {
+            this._chaseStuckTimer = 0;
+          }
+        }
+
         if (this.aiState === "INVESTIGATE" || this.aiState === "SEARCH") {
-          if (moved < this.stuckMoveThreshold) {
+          if (moved < this.stuckMoveThreshold || !madeProgress) {
             this._actionStuckTimer += dt;
             if (this._actionStuckTimer > this._actionStuckTimeout) {
               if (this.aiState === "INVESTIGATE") {
@@ -464,24 +506,27 @@ class Guard {
     debugInfo.inRange = false;
     debugInfo.inFov = false;
     debugInfo.hasLos = false;
+    debugInfo.closeDetect = false;
 
     if (!playerHiddenNow && visionSample) {
       debugInfo.inRange = visionSample.inRange;
       debugInfo.inFov = visionSample.inFov;
       debugInfo.hasLos = visionSample.hasLos;
+      debugInfo.closeDetect = visionSample.closeDetect;
       debugInfo.sees = visionSample.sees;
+    }
 
-      if (this.aiState === "CHASE" && rectsIntersect(this, this.player)) {
-        if (this.animations.attack) {
-          this.animState = "attack";
-          this.lastAnimState = "attack";
-          this.animations.attack.reset();
-        }
-        this.state.playerState = "CAPTURED";
-        this.state.status = "lost";
-        this.state.lastCaptureByGuardId = this.guardId;
-        return;
+    // Contact capture is always active while the player is visible (fair stealth baseline).
+    if (!playerHiddenNow && rectsIntersect(this, this.player)) {
+      if (this.animations.attack) {
+        this.animState = "attack";
+        this.lastAnimState = "attack";
+        this.animations.attack.reset();
       }
+      this.state.playerState = "CAPTURED";
+      this.state.status = "lost";
+      this.state.lastCaptureByGuardId = this.guardId;
+      return;
     }
 
     this._wasHiddenPrev = playerHiddenNow;
@@ -502,11 +547,13 @@ class Guard {
     const inFov = diff <= this.fov / 2;
 
     const hasLos = inRange && inFov ? hasLineOfSight(g, p, this.level.walls) : false;
+    const closeDetect = hasLos && dist <= this.closeDetectRange;
 
     return {
       inRange,
       inFov,
       hasLos,
+      closeDetect,
       sees: inRange && inFov && hasLos,
       guardCenter: g,
       playerCenter: p,
@@ -589,6 +636,7 @@ class Guard {
     this._wasHiddenPrev = false;
 
     this._actionStuckTimer = 0;
+    this._chaseStuckTimer = 0;
 
     this.animState = "idle";
     this.lastAnimState = "idle";
@@ -738,6 +786,57 @@ class Guard {
     return this.patrolSpeed;
   }
 
+  _attemptRecoveryMove(dirX, dirY, target, dt) {
+    if (!target) return 0;
+
+    const startX = this.x;
+    const startY = this.y;
+    const probeStep = Math.max(1, this.speed * dt * this.unstickProbeScale);
+    const targetDist = (x, y) => {
+      const cx = x + this.w / 2;
+      const cy = y + this.h / 2;
+      return Math.hypot(target.x - cx, target.y - cy);
+    };
+
+    const startDist = targetDist(startX, startY);
+    const probes = [
+      { dx: -dirY * probeStep, dy: dirX * probeStep },
+      { dx: dirY * probeStep, dy: -dirX * probeStep },
+      { dx: Math.sign(dirX) * probeStep, dy: 0 },
+      { dx: 0, dy: Math.sign(dirY) * probeStep },
+    ];
+
+    let best = null;
+
+    for (const probe of probes) {
+      if (probe.dx === 0 && probe.dy === 0) continue;
+
+      this.x = startX;
+      this.y = startY;
+      moveWithWalls(this, probe.dx, probe.dy, this.level.walls);
+
+      const moved = Math.hypot(this.x - startX, this.y - startY);
+      if (moved <= this.stuckMoveThreshold * 0.5) continue;
+
+      const dist = targetDist(this.x, this.y);
+      const progress = startDist - dist;
+      if (progress <= 0.05) continue;
+      if (!best || dist < best.dist) {
+        best = { x: this.x, y: this.y, moved, dist };
+      }
+    }
+
+    if (best) {
+      this.x = best.x;
+      this.y = best.y;
+      return best.moved;
+    }
+
+    this.x = startX;
+    this.y = startY;
+    return 0;
+  }
+
   _updateAnimationState(isMoving) {
     const capturedByThisGuard = this.state.status === "lost" && this.state.lastCaptureByGuardId === this.guardId;
     const nextState = capturedByThisGuard && this.animations.attack
@@ -763,6 +862,8 @@ class Guard {
     const cone = this._coneVisual();
     const left = this.facing - this.fov / 2;
     const right = this.facing + this.fov / 2;
+    const points = this._buildVisionPolygon(guardCenter, left, right, this.visionRange);
+    if (!points.length) return;
 
     ctx.save();
     const radial = ctx.createRadialGradient(
@@ -779,16 +880,147 @@ class Guard {
     ctx.fillStyle = radial;
     ctx.beginPath();
     ctx.moveTo(guardCenter.x, guardCenter.y);
-    ctx.arc(guardCenter.x, guardCenter.y, this.visionRange, left, right);
+    for (const point of points) {
+      ctx.lineTo(point.x, point.y);
+    }
     ctx.closePath();
     ctx.fill();
 
     ctx.strokeStyle = cone.edge;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(guardCenter.x, guardCenter.y, this.visionRange, left, right);
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      const point = points[i];
+      ctx.lineTo(point.x, point.y);
+    }
     ctx.stroke();
     ctx.restore();
+  }
+
+  _buildVisionPolygon(origin, leftAngle, rightAngle, maxDist) {
+    const span = Math.max(0.0001, rightAngle - leftAngle);
+    const rayCount = Math.max(56, Math.min(160, Math.round(maxDist / 4)));
+    const blockingWalls = this._getVisionBlockingWalls();
+    const points = [];
+    for (let i = 0; i <= rayCount; i++) {
+      const t = i / rayCount;
+      const angle = leftAngle + span * t;
+      points.push(this._castVisionRay(origin, angle, maxDist, blockingWalls));
+    }
+    return points;
+  }
+
+  _castVisionRay(origin, angle, maxDist, blockingWalls) {
+    const dirX = Math.cos(angle);
+    const dirY = Math.sin(angle);
+    const endX = origin.x + dirX * maxDist;
+    const endY = origin.y + dirY * maxDist;
+    const rayMinX = Math.min(origin.x, endX);
+    const rayMinY = Math.min(origin.y, endY);
+    const rayMaxX = Math.max(origin.x, endX);
+    const rayMaxY = Math.max(origin.y, endY);
+    const eps = this._losEpsilon();
+
+    let bestT = maxDist;
+    for (const wall of blockingWalls) {
+      if (!wall) continue;
+      if (wall.x > rayMaxX || wall.x + wall.w < rayMinX || wall.y > rayMaxY || wall.y + wall.h < rayMinY) {
+        continue;
+      }
+      const t = this._rayAabbHitDistance(origin.x, origin.y, dirX, dirY, maxDist, wall);
+      if (t !== null && t >= 0 && t < bestT) {
+        bestT = Math.max(0, t - eps * 2);
+      }
+    }
+
+    return {
+      x: origin.x + dirX * bestT,
+      y: origin.y + dirY * bestT,
+    };
+  }
+
+  _rayAabbHitDistance(originX, originY, dirX, dirY, maxDist, wall) {
+    const inset = this._losInset();
+    const minX = wall.x + inset;
+    const minY = wall.y + inset;
+    const maxX = wall.x + wall.w - inset;
+    const maxY = wall.y + wall.h - inset;
+    if (maxX <= minX || maxY <= minY) return null;
+
+    const eps = this._losEpsilon();
+    let tMin = 0;
+    let tMax = maxDist;
+
+    if (Math.abs(dirX) <= eps) {
+      if (originX <= minX || originX >= maxX) return null;
+    } else {
+      let tx1 = (minX - originX) / dirX;
+      let tx2 = (maxX - originX) / dirX;
+      if (tx1 > tx2) {
+        const temp = tx1;
+        tx1 = tx2;
+        tx2 = temp;
+      }
+      tMin = Math.max(tMin, tx1);
+      tMax = Math.min(tMax, tx2);
+      if (tMax < tMin) return null;
+    }
+
+    if (Math.abs(dirY) <= eps) {
+      if (originY <= minY || originY >= maxY) return null;
+    } else {
+      let ty1 = (minY - originY) / dirY;
+      let ty2 = (maxY - originY) / dirY;
+      if (ty1 > ty2) {
+        const temp = ty1;
+        ty1 = ty2;
+        ty2 = temp;
+      }
+      tMin = Math.max(tMin, ty1);
+      tMax = Math.min(tMax, ty2);
+      if (tMax < tMin) return null;
+    }
+
+    if (tMax < 0 || tMin > maxDist) return null;
+    return Math.max(0, tMin);
+  }
+
+  _getVisionBlockingWalls() {
+    const walls = Array.isArray(this.level?.walls) ? this.level.walls : [];
+    return walls.filter(wall => {
+      if (!wall) return false;
+      if (
+        !Number.isFinite(wall.x) ||
+        !Number.isFinite(wall.y) ||
+        !Number.isFinite(wall.w) ||
+        !Number.isFinite(wall.h) ||
+        wall.w <= 0 ||
+        wall.h <= 0
+      ) {
+        return false;
+      }
+      if (wall.componentType === "lockedDoor" && (wall.locked === false || wall.state === "OPEN")) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  _losEpsilon() {
+    if (typeof TUNING !== "undefined" && TUNING.los) {
+      const value = Number(TUNING.los.epsilon);
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+    return 1e-6;
+  }
+
+  _losInset() {
+    if (typeof TUNING !== "undefined" && TUNING.los) {
+      const value = Number(TUNING.los.edgeInset);
+      if (Number.isFinite(value) && value >= 0) return value;
+    }
+    return 0;
   }
 
   _drawStateBeacon(ctx, guardCenter) {

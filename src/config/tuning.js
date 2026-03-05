@@ -8,8 +8,11 @@ const TUNING = {
     visionRange: 320,
     fovDeg: 80,
     waypointReachDistance: 8,
+    closeDetectRange: 54,
     stuckMoveThreshold: 0.5,
     stuckAdvanceDelay: 0.35,
+    actionStuckTimeout: 0.85,
+    unstickProbeScale: 0.85,
   },
   rock: {
     maxThrowRange: 250,
