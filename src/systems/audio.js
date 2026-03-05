@@ -201,7 +201,7 @@ class AudioSystem {
   onInteraction(actionId, context = {}) {
     if (!actionId) return;
 
-    if (actionId === "pickup-keycard") {
+    if (actionId === "pickup-keycard" || actionId === "pickup-item") {
       this._play("obj_keycard_pickup", { volume: 0.88 });
       return;
     }

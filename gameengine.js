@@ -29,7 +29,21 @@ class GameEngine {
             y: 0,
             width: 1024,
             height: 768,
-            zoom: 0.75 // zoom out (1 = normal  )
+            zoom: 0.75, // zoom out (1 = normal  )
+            // Keep the player in a HUD-safe frame so top/bottom UI does not cover gameplay.
+            safeFramePx: {
+                left: 24,
+                right: 24,
+                top: 220,
+                bottom: 96,
+            },
+            // Allow slight camera overscroll past map edges to preserve visibility near borders.
+            overscrollPx: {
+                left: 96,
+                right: 96,
+                top: 320,
+                bottom: 140,
+            },
         };
         this.pendingSceneAction = null;
         this.overlayDrawFns = [];
@@ -234,20 +248,36 @@ class GameEngine {
             const viewHeight = this.camera.height / zoom;
             const levelWidth = Math.max(0, Number(this.level.width || this.level.w || 0));
             const levelHeight = Math.max(0, Number(this.level.height || this.level.h || 0));
+            const safeFrame = this.camera.safeFramePx || {};
+            const safeLeft = Math.max(0, Number(safeFrame.left) || 0);
+            const safeRight = Math.max(0, Number(safeFrame.right) || 0);
+            const safeTop = Math.max(0, Number(safeFrame.top) || 0);
+            const safeBottom = Math.max(0, Number(safeFrame.bottom) || 0);
 
-            let targetX = player.x + player.w / 2 - viewWidth / 2;
-            let targetY = player.y + player.h / 2 - viewHeight / 2;
+            const minScreenX = Math.max(0, Math.min(this.camera.width - 1, safeLeft));
+            const maxScreenX = Math.max(minScreenX + 1, this.camera.width - safeRight);
+            const minScreenY = Math.max(0, Math.min(this.camera.height - 1, safeTop));
+            const maxScreenY = Math.max(minScreenY + 1, this.camera.height - safeBottom);
 
-            const clampedX = clamp(
-                targetX, 
-                0, 
-                Math.max(0, levelWidth - viewWidth)
-            );
-            const clampedY = clamp(
-                targetY,
-                0,
-                Math.max(0, levelHeight - viewHeight)
-            );
+            const preferredScreenX = (minScreenX + maxScreenX) * 0.5;
+            const preferredScreenY = (minScreenY + maxScreenY) * 0.5;
+
+            let targetX = player.x + player.w / 2 - preferredScreenX / zoom;
+            let targetY = player.y + player.h / 2 - preferredScreenY / zoom;
+
+            const overscroll = this.camera.overscrollPx || {};
+            const extraLeft = Math.max(0, Number(overscroll.left) || 0) / zoom;
+            const extraRight = Math.max(0, Number(overscroll.right) || 0) / zoom;
+            const extraTop = Math.max(0, Number(overscroll.top) || 0) / zoom;
+            const extraBottom = Math.max(0, Number(overscroll.bottom) || 0) / zoom;
+
+            const minX = -extraLeft;
+            const maxX = Math.max(minX, levelWidth - viewWidth + extraRight);
+            const minY = -extraTop;
+            const maxY = Math.max(minY, levelHeight - viewHeight + extraBottom);
+
+            const clampedX = clamp(targetX, minX, maxX);
+            const clampedY = clamp(targetY, minY, maxY);
 
             // Pixel-snap camera to reduce subpixel shimmer and perceived jitter.
             this.camera.x = Math.round(clampedX * zoom) / zoom;

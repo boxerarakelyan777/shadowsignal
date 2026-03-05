@@ -878,9 +878,32 @@ function normalizeLevelComponents(level) {
   }
 
   if (level.keycard) level.keycard = createKeycard(level.keycard);
+  if (Array.isArray(level.pickups)) {
+    level.pickups = level.pickups.map(pickup => createKeycard(pickup));
+  }
   if (level.terminal) level.terminal = createTerminal(level.terminal);
   if (level.lockedDoor) level.lockedDoor = createLockedDoor(level.lockedDoor);
+  if (Array.isArray(level.lockedDoors)) {
+    level.lockedDoors = level.lockedDoors.map(door => createLockedDoor(door));
+  }
   if (level.exitZone) level.exitZone = createExitZone(level.exitZone);
+
+  if (!level.keycard && Array.isArray(level.pickups) && level.pickups.length) {
+    const legacyKeycard = level.pickups.find(pickup => {
+      if (!pickup) return false;
+      if (pickup.grantsFlag === "hasKeycard") return true;
+      return Array.isArray(pickup.grantsFlags) && pickup.grantsFlags.includes("hasKeycard");
+    });
+    if (legacyKeycard) level.keycard = legacyKeycard;
+  }
+
+  if (!Array.isArray(level.lockedDoors)) level.lockedDoors = [];
+  if (level.lockedDoor && !level.lockedDoors.some(door => door && door.x === level.lockedDoor.x && door.y === level.lockedDoor.y && door.w === level.lockedDoor.w && door.h === level.lockedDoor.h)) {
+    level.lockedDoors.unshift(level.lockedDoor);
+  }
+  if (!level.lockedDoor && level.lockedDoors.length) {
+    level.lockedDoor = level.lockedDoors[0];
+  }
 
   if (Array.isArray(level.guards)) {
     level.guards = level.guards.map(guard => createGuard(guard));

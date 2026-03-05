@@ -4,6 +4,7 @@ const LEVEL_CATALOG = [
   { id: "nova", name: "Operation Nova", data: NOVA_LEVEL },
   { id: "prototype", name: "Prototype Facility", data: PROTOTYPE_LEVEL },
   { id: "tutorial", name: "Training Facility", data: FIRST_LEVEL },
+  { id: "level3", name: "Level 3: Data Vault Breakout", data: LEVEL_3 },
   { id: "test", name: "Test Sandbox", data: TEST_LEVEL },
 ];
 const DEFAULT_LEVEL_INDEX = 0;
@@ -19,6 +20,8 @@ const STATE = {
   levelCount: LEVEL_CATALOG.length,
   levelMeta: LEVEL_CATALOG.map(level => ({ id: level.id, name: level.name })),
   hasKeycard: false,
+  hasBlueCard: false,
+  hasRedPass: false,
   objectiveComplete: false,
   terminalComplete: false,
   terminalState: "INACTIVE",
@@ -42,6 +45,8 @@ const STATE = {
   messageTimer: 0,
   input: null,
   keycardSpawn: null,
+  pickupSpawns: [],
+  doorSpawns: [],
   lastCaptureByGuardId: null,
   debugInfo: { guards: [] },
   menuOptionRects: [],
@@ -146,6 +151,11 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   STATE.selectedLevelIndex = safeLevelIndex;
   STATE.levelCount = LEVEL_CATALOG.length;
   STATE.keycardSpawn = level.keycard ? { ...level.keycard } : null;
+  STATE.pickupSpawns = collectLevelPickups(level).map(pickup => ({ ...pickup }));
+  STATE.doorSpawns = collectLevelDoors(level).map(door => ({
+    ...door,
+    trigger: door.trigger ? { ...door.trigger } : door.trigger,
+  }));
   STATE.lastCaptureByGuardId = null;
   STATE.debugInfo = { guards: [] };
   STATE.menuOptionRects = [];
@@ -157,6 +167,8 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   STATE.playerState = "NORMAL";
   STATE.playerExtracted = false;
   STATE.hasKeycard = false;
+  STATE.hasBlueCard = false;
+  STATE.hasRedPass = false;
   STATE.objectiveComplete = false;
   STATE.terminalComplete = false;
   STATE.terminalState = "INACTIVE";
@@ -254,4 +266,34 @@ function normalizeLevelGuards(level) {
 
 function cloneLevel(level) {
   return JSON.parse(JSON.stringify(level));
+}
+
+function collectLevelPickups(level) {
+  if (!level) return [];
+  const pickups = [];
+  if (level.keycard) pickups.push(level.keycard);
+  if (Array.isArray(level.pickups)) {
+    for (const pickup of level.pickups) {
+      if (!pickup) continue;
+      if (!pickups.some(existing => rectMatches(existing, pickup))) pickups.push(pickup);
+    }
+  }
+  return pickups;
+}
+
+function collectLevelDoors(level) {
+  if (!level) return [];
+  const doors = [];
+  if (level.lockedDoor) doors.push(level.lockedDoor);
+  if (Array.isArray(level.lockedDoors)) {
+    for (const door of level.lockedDoors) {
+      if (!door) continue;
+      if (!doors.some(existing => rectMatches(existing, door))) doors.push(door);
+    }
+  }
+  return doors;
+}
+
+function rectMatches(a, b) {
+  return !!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }

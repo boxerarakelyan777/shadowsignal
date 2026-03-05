@@ -251,10 +251,10 @@ class LevelRenderer {
     }
     if (!lowPerf) this._drawWallDecalStamps(ctx, view);
 
-    if (this.level.lockedDoor) {
-      if (this._rectInView(this.level.lockedDoor, view)) {
-        this._drawLockedDoor(ctx, this.level.lockedDoor);
-      }
+    for (const door of this._getLevelDoors()) {
+      if (!door) continue;
+      if (!this._rectInView(door, view)) continue;
+      this._drawLockedDoor(ctx, door);
     }
 
     for (const h of this.level.hideSpots || []) {
@@ -278,10 +278,10 @@ class LevelRenderer {
       }
     }
 
-    if (this.level.keycard) {
-      if (this._rectInView(this.level.keycard, view)) {
-        this._drawKeycardPickup(ctx, this.level.keycard);
-      }
+    for (const pickup of this._getLevelPickups()) {
+      if (!pickup) continue;
+      if (!this._rectInView(pickup, view)) continue;
+      this._drawKeycardPickup(ctx, pickup);
     }
 
     if (this.level.exitZone) {
@@ -299,6 +299,34 @@ class LevelRenderer {
     return "default";
   }
 
+  _getLevelDoors() {
+    const doors = [];
+    if (this.level?.lockedDoor) doors.push(this.level.lockedDoor);
+    if (Array.isArray(this.level?.lockedDoors)) {
+      for (const door of this.level.lockedDoors) {
+        if (!door) continue;
+        if (!doors.some(existing => this._rectMatches(existing, door))) {
+          doors.push(door);
+        }
+      }
+    }
+    return doors;
+  }
+
+  _getLevelPickups() {
+    const pickups = [];
+    if (this.level?.keycard) pickups.push(this.level.keycard);
+    if (Array.isArray(this.level?.pickups)) {
+      for (const pickup of this.level.pickups) {
+        if (!pickup) continue;
+        if (!pickups.some(existing => this._rectMatches(existing, pickup))) {
+          pickups.push(pickup);
+        }
+      }
+    }
+    return pickups;
+  }
+
   _useFloorZones() {
     return this.level?.useFloorZones === true;
   }
@@ -309,6 +337,10 @@ class LevelRenderer {
 
   _floorStampsEnabled() {
     return this.level?.enableFloorStamps === true;
+  }
+
+  _wallDecalsEnabled() {
+    return this.level?.enableWallDecals !== false;
   }
 
   _buildFloorZones() {
@@ -617,7 +649,9 @@ class LevelRenderer {
       }
     }
 
-    this._addDoorThresholdFloorStamps(stamps, this.level?.lockedDoor, markingPath, decalPath);
+    for (const door of this._getLevelDoors()) {
+      this._addDoorThresholdFloorStamps(stamps, door, markingPath, decalPath);
+    }
     this._addObjectiveFloorDecals(stamps, decalPath);
     return stamps;
   }
@@ -688,7 +722,7 @@ class LevelRenderer {
 
   _addObjectiveFloorDecals(stamps, decalPath) {
     if (!stamps || !decalPath) return;
-    const objectives = [this.level?.terminal, this.level?.keycard, this.level?.exitZone];
+    const objectives = [this.level?.terminal, ...this._getLevelPickups(), this.level?.exitZone];
     for (let i = 0; i < objectives.length; i++) {
       const target = objectives[i];
       if (!target) continue;
@@ -792,6 +826,8 @@ class LevelRenderer {
   }
 
   _buildWallDecalStamps() {
+    if (!this._wallDecalsEnabled()) return [];
+
     const stamps = [];
     const visual = this._getComponentVisual("wall", "default");
     const path = visual?.decalSpritePath;
@@ -1216,21 +1252,21 @@ class LevelRenderer {
   }
 
   _updateDoorVisuals(dt) {
-    const door = this.level?.lockedDoor;
-    if (!door) return;
+    for (const door of this._getLevelDoors()) {
+      if (!door) continue;
+      const isOpen = door.locked === false || door.state === "OPEN";
+      const targetProgress = isOpen ? 1 : 0;
+      const duration = Math.max(0.06, this._num(door.openDuration, 0.3));
+      const current = clamp(this._num(door.openProgress, targetProgress), 0, 1);
+      const step = dt / duration;
 
-    const isOpen = door.locked === false || door.state === "OPEN";
-    const targetProgress = isOpen ? 1 : 0;
-    const duration = Math.max(0.06, this._num(door.openDuration, 0.3));
-    const current = clamp(this._num(door.openProgress, targetProgress), 0, 1);
-    const step = dt / duration;
-
-    if (targetProgress > current) {
-      door.openProgress = Math.min(targetProgress, current + step);
-    } else if (targetProgress < current) {
-      door.openProgress = Math.max(targetProgress, current - step);
-    } else {
-      door.openProgress = targetProgress;
+      if (targetProgress > current) {
+        door.openProgress = Math.min(targetProgress, current + step);
+      } else if (targetProgress < current) {
+        door.openProgress = Math.max(targetProgress, current - step);
+      } else {
+        door.openProgress = targetProgress;
+      }
     }
   }
 
@@ -2770,32 +2806,7 @@ class LevelRenderer {
     const titleFont = `700 ${Math.round(21 * ui)}px "Rajdhani", "Trebuchet MS", sans-serif`;
     const objectiveFont = `600 ${Math.round(16 * ui)}px "Rajdhani", "Trebuchet MS", sans-serif`;
 
-    const hasKeycard = !!this.state.hasKeycard;
-    const hasDoor = !!this.level.lockedDoor;
-    const doorOpen = !hasDoor || this.level.lockedDoor.locked === false || this.level.lockedDoor.state === "OPEN";
-    const hasTerminal = !!this.level.terminal;
-    const terminalDone = !hasTerminal || !!this.state.terminalComplete;
-    const needsKeycard = !!(this.level.keycard || hasDoor);
-    const keycardDone = !needsKeycard || hasKeycard || (hasDoor && doorOpen);
-
-    const steps = [];
-    if (needsKeycard) steps.push({ label: "Find keycard", done: keycardDone, icon: "keycard" });
-    if (hasDoor) {
-      steps.push({
-        label: "Open secured door",
-        done: doorOpen,
-        icon: doorOpen ? "door_unlocked" : "door_locked",
-      });
-    }
-    if (hasTerminal) {
-      steps.push({
-        label: "Download terminal data",
-        done: terminalDone,
-        icon: "objective",
-      });
-    }
-    const extractionDone = this.state.status === "extracting" || this.state.status === "won";
-    steps.push({ label: "Reach extraction", done: extractionDone, icon: "objective" });
+    const steps = this._buildObjectiveSteps();
     const completedSteps = steps.reduce((count, step) => count + (step.done ? 1 : 0), 0);
 
     const leftX = 18 * ui;
@@ -3015,6 +3026,88 @@ class LevelRenderer {
         y += 18 * ui;
       }
     }
+  }
+
+  _buildObjectiveSteps() {
+    const customSteps = Array.isArray(this.level?.objectiveSteps) ? this.level.objectiveSteps : [];
+    if (customSteps.length) {
+      const evaluated = customSteps.map(step => this._evaluateObjectiveStep(step)).filter(Boolean);
+      if (evaluated.length) return evaluated;
+    }
+
+    const hasKeycard = !!this.state.hasKeycard || !!this.state.hasBlueCard;
+    const doors = this._getLevelDoors();
+    const hasTerminal = !!this.level.terminal;
+    const terminalDone = !hasTerminal || !!this.state.terminalComplete;
+    const pickups = this._getLevelPickups();
+    const needsKeycard = !!(pickups.length || doors.length);
+
+    const steps = [];
+    if (needsKeycard) {
+      steps.push({ label: "Find keycard", done: hasKeycard, icon: "keycard" });
+    }
+    for (const door of doors) {
+      const doorOpen = door.locked === false || door.state === "OPEN";
+      steps.push({
+        label: door.objectiveLabel || "Open secured door",
+        done: doorOpen,
+        icon: doorOpen ? "door_unlocked" : "door_locked",
+      });
+    }
+    if (hasTerminal) {
+      steps.push({
+        label: "Download terminal data",
+        done: terminalDone,
+        icon: "objective",
+      });
+    }
+    const extractionDone = this.state.status === "extracting" || this.state.status === "won";
+    steps.push({ label: "Reach extraction", done: extractionDone, icon: "objective" });
+    return steps;
+  }
+
+  _evaluateObjectiveStep(step) {
+    if (!step || typeof step !== "object") return null;
+    const type = (step.type || "flag").toString();
+    let done = false;
+    let icon = step.icon || "objective";
+
+    if (type === "flag") {
+      done = !!this.state[(step.flag || "").toString()];
+    } else if (type === "door") {
+      const door = this._resolveStepDoor(step);
+      done = !door || door.locked === false || door.state === "OPEN";
+      icon = done ? "door_unlocked" : (step.icon || "door_locked");
+    } else if (type === "terminal") {
+      done = !!this.state.terminalComplete;
+    } else if (type === "extract") {
+      done = this.state.status === "extracting" || this.state.status === "won";
+    } else if (type === "pickup") {
+      done = !!this.state[(step.flag || "").toString()];
+    } else {
+      return null;
+    }
+
+    return {
+      label: (step.label || "Objective").toString(),
+      done,
+      icon,
+    };
+  }
+
+  _resolveStepDoor(step) {
+    if (!step) return null;
+    const doorId = (step.doorId || "").toString();
+    if (doorId) {
+      const byId = this._getLevelDoors().find(door => (door?.doorId || "").toString() === doorId);
+      if (byId) return byId;
+    }
+    const index = Number(step.doorIndex);
+    if (Number.isFinite(index)) {
+      const doors = this._getLevelDoors();
+      if (index >= 0 && index < doors.length) return doors[index];
+    }
+    return null;
   }
 
   _drawModalPromptToast(ctx, cw, ch, modalBounds, text) {
@@ -3509,6 +3602,10 @@ class LevelRenderer {
   _num(value, fallback) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  _rectMatches(a, b) {
+    return !!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
   }
 
   _isLowPerf() {

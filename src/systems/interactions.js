@@ -19,7 +19,8 @@ function getInteraction(player, level, state) {
   const candidates = [];
   const playerCenter = centerOf(player);
   const isHidden = player.hidden || state.playerState === "HIDDEN";
-  const hasKeycard = !!state.hasKeycard;
+  const doors = getLevelDoors(level);
+  const pickups = getLevelPickups(level);
 
   const addCandidate = (trigger, data) => {
     if (!trigger) return;
@@ -51,21 +52,21 @@ function getInteraction(player, level, state) {
     return selectBestInteraction(candidates, playerCenter);
   }
 
-  if (level.lockedDoor) {
-    const doorState = getDoorState(level.lockedDoor);
+  for (const door of doors) {
+    const doorState = getDoorState(door);
     if (doorState !== "OPEN") {
-      const trigger = level.lockedDoor.trigger || level.lockedDoor;
-      const locked = doorState === "LOCKED";
-      const prompt = locked
-        ? (hasKeycard ? "E: Open Door" : "E: Open Door (Locked)")
-        : "E: Open Door";
-      const actionId = locked && !hasKeycard ? "door-locked" : "unlock-door";
+      const trigger = door.trigger || door;
+      const requirementMet = isDoorRequirementMet(door, state);
+      const prompt = requirementMet
+        ? (door.openPrompt || "E: Open Door")
+        : (door.lockedPrompt || `E: Open Door (${getDoorRequirementLabel(door)})`);
+      const actionId = requirementMet ? "unlock-door" : "door-locked";
       addCandidate(trigger, {
         actionId,
         type: "press",
         prompt,
         priority: INTERACTION_PRIORITIES.door,
-        target: level.lockedDoor,
+        target: door,
       });
     }
   }
@@ -108,13 +109,13 @@ function getInteraction(player, level, state) {
     }
   }
 
-  if (level.keycard) {
-    addCandidate(level.keycard, {
-      actionId: "pickup-keycard",
+  for (const pickup of pickups) {
+    addCandidate(pickup, {
+      actionId: "pickup-item",
       type: "press",
-      prompt: "E: Pick up Keycard",
+      prompt: pickup.prompt || "E: Pick up Keycard",
       priority: INTERACTION_PRIORITIES.keycard,
-      target: level.keycard,
+      target: pickup,
     });
   }
 
@@ -185,28 +186,44 @@ function performInteraction(interaction, player, level, state) {
     return;
   }
 
-  if (actionId === "pickup-keycard") {
-    state.hasKeycard = true;
-    level.keycard = null;
-    state.message = "Keycard acquired.";
+  if (actionId === "pickup-item" || actionId === "pickup-keycard") {
+    const pickup = interaction?.target || level?.keycard || null;
+    const flags = resolvePickupFlags(pickup);
+    for (const flag of flags) {
+      if (!flag) continue;
+      state[flag] = true;
+    }
+
+    // Keep legacy keycard flow compatible.
+    if (flags.includes("hasBlueCard")) state.hasKeycard = true;
+    if (flags.includes("hasKeycard")) state.hasBlueCard = true;
+
+    if (Array.isArray(level?.pickups)) {
+      level.pickups = level.pickups.filter(item => !rectMatches(item, pickup));
+    }
+    if (level?.keycard && rectMatches(level.keycard, pickup)) {
+      level.keycard = null;
+    }
+    state.message = pickup?.acquiredMessage || "Keycard acquired.";
     state.messageTimer = MESSAGE_DURATION;
     return;
   }
 
   if (actionId === "door-locked") {
-    state.message = "Locked. Need keycard.";
+    const door = interaction?.target || null;
+    state.message = door?.lockedMessage || `Locked. Need ${getDoorRequirementLabel(door)}.`;
     state.messageTimer = MESSAGE_DURATION;
     return;
   }
 
   if (actionId === "unlock-door") {
-    const hasKeycard = !!state.hasKeycard;
-    if (level.lockedDoor?.locked !== false && hasKeycard) {
-      level.lockedDoor.locked = false;
-      level.lockedDoor.state = "OPEN";
-      level.lockedDoor.openProgress = 0;
+    const door = interaction?.target || level?.lockedDoor || null;
+    if (door?.locked !== false && isDoorRequirementMet(door, state)) {
+      door.locked = false;
+      door.state = "OPEN";
+      door.openProgress = 0;
       if (Array.isArray(level.walls)) {
-        level.walls = level.walls.filter(w => !rectMatches(w, level.lockedDoor));
+        level.walls = level.walls.filter(w => !rectMatches(w, door));
       }
     }
     return;
@@ -238,4 +255,56 @@ function performInteraction(interaction, player, level, state) {
 
 function rectMatches(a, b) {
   return !!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
+function getLevelDoors(level) {
+  if (!level) return [];
+  const doors = [];
+  if (level.lockedDoor) doors.push(level.lockedDoor);
+  if (Array.isArray(level.lockedDoors)) {
+    for (const door of level.lockedDoors) {
+      if (!door) continue;
+      if (!doors.some(existing => rectMatches(existing, door))) doors.push(door);
+    }
+  }
+  return doors;
+}
+
+function getLevelPickups(level) {
+  if (!level) return [];
+  const pickups = [];
+  if (level.keycard) pickups.push(level.keycard);
+  if (Array.isArray(level.pickups)) {
+    for (const pickup of level.pickups) {
+      if (!pickup) continue;
+      if (!pickups.some(existing => rectMatches(existing, pickup))) pickups.push(pickup);
+    }
+  }
+  return pickups;
+}
+
+function resolvePickupFlags(pickup) {
+  if (!pickup) return ["hasKeycard", "hasBlueCard"];
+  if (Array.isArray(pickup.grantsFlags) && pickup.grantsFlags.length) {
+    return pickup.grantsFlags.map(flag => (flag || "").toString()).filter(Boolean);
+  }
+  const single = (pickup.grantsFlag || "").toString();
+  if (single) return [single];
+  return ["hasKeycard", "hasBlueCard"];
+}
+
+function isDoorRequirementMet(door, state) {
+  if (!door || !state) return false;
+  const requiredFlag = (door.requiredFlag || "").toString();
+  if (!requiredFlag) return !!state.hasKeycard;
+  return !!state[requiredFlag];
+}
+
+function getDoorRequirementLabel(door) {
+  if (!door) return "keycard";
+  if (door.requirementLabel) return door.requirementLabel;
+  const requiredFlag = (door.requiredFlag || "").toString();
+  if (requiredFlag === "terminalComplete") return "completed objective";
+  if (requiredFlag === "hasRedPass") return "RED pass";
+  return "keycard";
 }

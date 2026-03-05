@@ -15,9 +15,9 @@ const TUNING = {
     maxThrowRange: 250,
     throwSpeed: 760,
     arcHeight: 18,
-    noiseRadius: 120,
+    noiseRadius: 160,
     impactVisualRadius: 14,
-    noiseTTL: 0.7,
+    noiseTTL: 1.0,
     cooldown: 1.1,
   },
   los: {

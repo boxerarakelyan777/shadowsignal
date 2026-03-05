@@ -18,6 +18,18 @@ class GameController {
     this.keycardSpawn = state.keycardSpawn
       ? { ...state.keycardSpawn }
       : (level.keycard ? { ...level.keycard } : null);
+    this.pickupSpawns = Array.isArray(state.pickupSpawns) && state.pickupSpawns.length
+      ? state.pickupSpawns.map(pickup => ({ ...pickup }))
+      : this._collectLevelPickups(level).map(pickup => ({ ...pickup }));
+    this.doorSpawns = Array.isArray(state.doorSpawns) && state.doorSpawns.length
+      ? state.doorSpawns.map(door => ({
+          ...door,
+          trigger: door.trigger ? { ...door.trigger } : door.trigger,
+        }))
+      : this._collectLevelDoors(level).map(door => ({
+          ...door,
+          trigger: door.trigger ? { ...door.trigger } : door.trigger,
+        }));
 
     const rockDefaults = (typeof TUNING !== "undefined" && TUNING.rock) ? TUNING.rock : {};
     this.maxThrowRange = this._num(rockDefaults.maxThrowRange, 250);
@@ -378,6 +390,8 @@ class GameController {
     this.player.lastDir = { x: 1, y: 0 };
 
     this.state.hasKeycard = false;
+    this.state.hasBlueCard = false;
+    this.state.hasRedPass = false;
     this.state.objectiveComplete = false;
     this.state.terminalComplete = false;
     this.state.terminalState = "INACTIVE";
@@ -412,21 +426,40 @@ class GameController {
     this.noiseEventSeq = 0;
     this.vfxEventSeq = 0;
 
-    if (this.keycardSpawn) {
+    const pickupSource = this.pickupSpawns.length
+      ? this.pickupSpawns
+      : (this.keycardSpawn ? [this.keycardSpawn] : []);
+    const respawnedPickups = pickupSource.map(pickup => ({ ...pickup }));
+    this.level.pickups = respawnedPickups;
+    this.state.pickupSpawns = respawnedPickups.map(pickup => ({ ...pickup }));
+
+    const legacyKeycard = respawnedPickups.find(pickup => this._pickupHasFlag(pickup, "hasKeycard"));
+    if (legacyKeycard) {
+      this.level.keycard = legacyKeycard;
+      this.state.keycardSpawn = { ...legacyKeycard };
+    } else if (this.keycardSpawn) {
       this.level.keycard = { ...this.keycardSpawn };
       this.state.keycardSpawn = { ...this.keycardSpawn };
     } else {
       this.level.keycard = null;
+      this.state.keycardSpawn = null;
     }
 
-    if (this.level.lockedDoor) {
-      this.level.lockedDoor.locked = true;
-      this.level.lockedDoor.state = "LOCKED";
-      this.level.lockedDoor.openProgress = 0;
-      if (!this.level.walls.some(w => this._rectMatches(w, this.level.lockedDoor))) {
-        this.level.walls.push(this.level.lockedDoor);
+    const doors = this._collectLevelDoors(this.level);
+    for (const door of doors) {
+      door.locked = true;
+      door.state = "LOCKED";
+      door.openProgress = 0;
+      if (!this.level.walls.some(w => this._rectMatches(w, door))) {
+        this.level.walls.push(door);
       }
     }
+    this.level.lockedDoors = doors;
+    this.level.lockedDoor = doors[0] || null;
+    this.state.doorSpawns = doors.map(door => ({
+      ...door,
+      trigger: door.trigger ? { ...door.trigger } : door.trigger,
+    }));
 
     if (this.level.hideSpots && this.level.hideSpots.length) {
       for (const spot of this.level.hideSpots) {
@@ -957,7 +990,8 @@ class GameController {
     if (!interaction) return;
 
     const actionId = interaction.actionId || "";
-    const hadKeycard = !!this.state.hasKeycard;
+    const hadBlue = !!this.state.hasKeycard || !!this.state.hasBlueCard;
+    const hadRed = !!this.state.hasRedPass;
     const hadTerminalComplete = !!this.state.terminalComplete;
     const targetCenter = this._rectCenter(interaction.target);
 
@@ -971,10 +1005,15 @@ class GameController {
       });
     }
 
-    if (actionId === "pickup-keycard" && !hadKeycard && this.state.hasKeycard && targetCenter) {
-      this._spawnVfxEvent("sparkle", targetCenter.x, targetCenter.y - 6, { scale: 1.08, alpha: 0.98 });
+    if ((actionId === "pickup-keycard" || actionId === "pickup-item") && targetCenter) {
+      const nowBlue = !!this.state.hasKeycard || !!this.state.hasBlueCard;
+      const nowRed = !!this.state.hasRedPass;
+      if ((!hadBlue && nowBlue) || (!hadRed && nowRed)) {
+        this._spawnVfxEvent("sparkle", targetCenter.x, targetCenter.y - 6, { scale: 1.08, alpha: 0.98 });
+      }
     } else if (actionId === "unlock-door") {
-      if (this.level?.lockedDoor) this.level.lockedDoor.openProgress = 0;
+      const door = interaction.target || this.level?.lockedDoor || null;
+      if (door) door.openProgress = 0;
       if (targetCenter) {
         this._spawnVfxEvent("dust", targetCenter.x, targetCenter.y + 6, { scale: 1.1, alpha: 0.8 });
         this._spawnVfxEvent("hit", targetCenter.x, targetCenter.y, { scale: 0.78, alpha: 0.75 });
@@ -985,6 +1024,41 @@ class GameController {
       this.state.pendingExtraction = false;
       this._startExtractionSequence(targetCenter || this._playerCenter());
     }
+  }
+
+  _pickupHasFlag(pickup, flagName) {
+    if (!pickup || !flagName) return false;
+    if (pickup.grantsFlag === flagName) return true;
+    if (Array.isArray(pickup.grantsFlags)) return pickup.grantsFlags.includes(flagName);
+    return false;
+  }
+
+  _collectLevelPickups(level) {
+    const source = level || this.level;
+    if (!source) return [];
+    const pickups = [];
+    if (source.keycard) pickups.push(source.keycard);
+    if (Array.isArray(source.pickups)) {
+      for (const pickup of source.pickups) {
+        if (!pickup) continue;
+        if (!pickups.some(existing => this._rectMatches(existing, pickup))) pickups.push(pickup);
+      }
+    }
+    return pickups;
+  }
+
+  _collectLevelDoors(level) {
+    const source = level || this.level;
+    if (!source) return [];
+    const doors = [];
+    if (source.lockedDoor) doors.push(source.lockedDoor);
+    if (Array.isArray(source.lockedDoors)) {
+      for (const door of source.lockedDoors) {
+        if (!door) continue;
+        if (!doors.some(existing => this._rectMatches(existing, door))) doors.push(door);
+      }
+    }
+    return doors;
   }
 
   _startExtractionSequence(center) {
