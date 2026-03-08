@@ -30,10 +30,12 @@ class Guard {
       fallbackConfig.patrolSpeed,
       numberOr(guardDefaults.patrolSpeed, 90)
     );
+
     this.chaseSpeed = numberOr(
       fallbackConfig.chaseSpeed,
       numberOr(guardDefaults.chaseSpeed, this.patrolSpeed)
     );
+
     this.returnSpeed = numberOr(
       fallbackConfig.returnSpeed,
       numberOr(guardDefaults.returnSpeed, this.patrolSpeed)
@@ -62,6 +64,10 @@ class Guard {
       this.returnSpeed = numberOr(fallbackConfig.returnSpeed, Math.max(this.returnSpeed, 120));
       this.visionRange = numberOr(fallbackConfig.visionRange, Math.min(this.visionRange, 300));
     }
+
+    // Make chase slightly faster than the player unless a faster explicit chase speed was already set.
+    const playerSpeed = numberOr(this.player?.speed, 220);
+    this.chaseSpeed = Math.max(this.chaseSpeed, playerSpeed + 12);
 
     this.fov = (fovDeg * Math.PI) / 180;
 
@@ -196,6 +202,20 @@ class Guard {
       numberOr(guardDefaults.unstickProbeScale, 0.85)
     );
 
+    // Pathfinding state
+    this.path = [];
+    this.pathIndex = 0;
+    this.pathGoalKey = "";
+    this.pathRepathInterval = numberOr(
+      fallbackConfig.pathRepathInterval,
+      numberOr(guardDefaults.pathRepathInterval, 0.45)
+    );
+    this.pathRepathTimer = 0;
+    this.pathNodeReachDistance = numberOr(
+      fallbackConfig.pathNodeReachDistance,
+      numberOr(guardDefaults.pathNodeReachDistance, 18)
+    );
+
     this.removeFromWorld = false;
     this.isGuard = true;
 
@@ -228,6 +248,11 @@ class Guard {
     const dt = this.game.clockTick;
     let isMoving = false;
 
+    if (this.pathRepathTimer > 0) {
+      this.pathRepathTimer -= dt;
+      if (this.pathRepathTimer < 0) this.pathRepathTimer = 0;
+    }
+
     const c = centerOf(this);
     const heardNoise = this._getHeardNoise(c);
     const heardNoiseId = numberOr(heardNoise?.id, -1);
@@ -248,7 +273,7 @@ class Guard {
         } else if (this.lastSeen) {
           this._enterSearch(this.lastSeen, this.lastSeenFacing, null);
         } else {
-          this.aiState = "RETURN";
+          this._resumePatrolRoute();
         }
       }
     }
@@ -261,7 +286,7 @@ class Guard {
         if (this.lastSeen) {
           this._enterSearch(this.lastSeen, this.lastSeenFacing, null);
         } else {
-          this.aiState = "RETURN";
+          this._resumePatrolRoute();
         }
       }
     }
@@ -273,6 +298,7 @@ class Guard {
       this.aiState = "INVESTIGATE";
       this.investigateTarget = { x: heardNoise.x, y: heardNoise.y };
       this.investigatePauseTimer = 0;
+      this._clearPath();
       if (heardNoiseId >= 0) this.lastHeardNoiseId = heardNoiseId;
     }
 
@@ -290,6 +316,7 @@ class Guard {
         if (this.detection >= 1) {
           if (this.aiState !== "CHASE") {
             this.aiState = "CHASE";
+            this._clearPath();
             this._radioAlert(this.lastSeen);
           }
         } else {
@@ -297,6 +324,7 @@ class Guard {
             this.aiState = "INVESTIGATE";
             this.investigateTarget = { x: this.lastSeen.x, y: this.lastSeen.y };
             this.investigatePauseTimer = 0;
+            this._clearPath();
           }
         }
       } else {
@@ -307,7 +335,7 @@ class Guard {
           if (this.lastSeen) {
             this._enterSearch(this.lastSeen, this.lastSeenFacing, null);
           } else {
-            this.aiState = "RETURN";
+            this._resumePatrolRoute();
           }
         }
       }
@@ -315,56 +343,85 @@ class Guard {
 
     this.speed = this._speedForState();
 
-    let target = null;
+    let directTarget = null;
+    let moveTarget = null;
+    let allowPathing = false;
 
     if (this.aiState === "PATROL") {
       this.mode = "CALM";
-      target = this.waypoints[this.wpIndex];
+      directTarget = this.waypoints[this.wpIndex];
+      moveTarget = directTarget;
+      this._clearPath();
     } else if (this.aiState === "INVESTIGATE") {
       this.mode = "SUSPICIOUS";
       if (this.investigatePauseTimer <= 0 && this.investigateTarget) {
-        target = this.investigateTarget;
+        directTarget = this.investigateTarget;
+        allowPathing = true;
       }
     } else if (this.aiState === "CHASE") {
       this.mode = "ALERT";
-      target = centerOf(this.player);
+      directTarget = centerOf(this.player);
+      allowPathing = true;
     } else if (this.aiState === "SEARCH") {
       this.mode = "ALERT";
       if (this.searchPauseTimer <= 0 && this.searchPlan.length) {
-        target = this.searchPlan[this.searchIndex];
+        directTarget = this.searchPlan[this.searchIndex];
+        allowPathing = true;
       }
     } else if (this.aiState === "RETURN") {
       this.mode = "SUSPICIOUS";
-      target = this.waypoints[this.wpIndex];
+      directTarget = this.waypoints[this.wpIndex];
+      allowPathing = true;
     }
 
-    if (target) {
-      const dx = target.x - c.x;
-      const dy = target.y - c.y;
+    if (!moveTarget && directTarget) {
+      moveTarget = this._resolveMovementTarget(directTarget, allowPathing);
+    }
+
+    if (this.aiState === "RETURN" && !directTarget) {
+      this._resumePatrolRoute();
+    }
+
+    if (moveTarget) {
+      const dx = moveTarget.x - c.x;
+      const dy = moveTarget.y - c.y;
       const dist = Math.hypot(dx, dy);
+
+      const directDist = directTarget
+        ? Math.hypot(directTarget.x - c.x, directTarget.y - c.y)
+        : dist;
 
       if (
         this.aiState === "PATROL" &&
-        dist < this.waypointReachDistance &&
+        directDist < this.waypointReachDistance &&
         this.waypoints.length
       ) {
         this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
       } else if (
         this.aiState === "INVESTIGATE" &&
-        dist < this.waypointReachDistance &&
+        directTarget &&
+        directDist < this.waypointReachDistance &&
         this.investigatePauseTimer <= 0
       ) {
         this.investigatePauseTimer = this.investigatePauseDuration;
         this._actionStuckTimer = 0;
+        this._clearPath();
       } else if (
         this.aiState === "SEARCH" &&
-        dist < this.waypointReachDistance &&
+        directTarget &&
+        directDist < this.waypointReachDistance &&
         this.searchPauseTimer <= 0
       ) {
         this.searchPauseTimer = this.searchPauseDuration;
         this._actionStuckTimer = 0;
-      } else if (this.aiState === "RETURN" && dist < this.waypointReachDistance) {
+        this._clearPath();
+      } else if (
+        this.aiState === "RETURN" &&
+        directTarget &&
+        directDist < this.waypointReachDistance
+      ) {
         this.aiState = "PATROL";
+        this._clearPath();
       } else if (dist >= 1) {
         const dirX = dx / dist;
         const dirY = dy / dist;
@@ -378,14 +435,20 @@ class Guard {
         moveWithWalls(this, mx, my, this.level.walls);
 
         let moved = Math.hypot(this.x - oldX, this.y - oldY);
+
         if (moved < this.stuckMoveThreshold) {
-          const recovered = this._attemptRecoveryMove(dirX, dirY, target, dt);
+          const recovered = this._attemptRecoveryMove(dirX, dirY, moveTarget, dt);
           if (recovered > moved) moved = recovered;
         }
+
         const nextCenter = centerOf(this);
-        const nextDist = Math.hypot(target.x - nextCenter.x, target.y - nextCenter.y);
+        const nextDist = Math.hypot(moveTarget.x - nextCenter.x, moveTarget.y - nextCenter.y);
         const madeProgress = (dist - nextDist) > 0.1;
         isMoving = moved > this.stuckMoveThreshold;
+
+        if (allowPathing && Array.isArray(this.path) && this.path.length) {
+          this._advancePathIfReached(nextCenter);
+        }
 
         if (
           (this.aiState === "PATROL" || this.aiState === "RETURN") &&
@@ -394,8 +457,12 @@ class Guard {
         ) {
           this._stuckTimer += dt;
           if (this._stuckTimer > this.stuckAdvanceDelay) {
-            this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
-            this._stuckTimer = 0;
+            if (this.aiState === "RETURN") {
+              this._resumePatrolRoute();
+            } else {
+              this.wpIndex = (this.wpIndex + 1) % this.waypoints.length;
+              this._stuckTimer = 0;
+            }
           }
         } else if (this.aiState === "PATROL" || this.aiState === "RETURN") {
           this._stuckTimer = 0;
@@ -410,8 +477,10 @@ class Guard {
                 if (this.lastSeen) {
                   this._enterSearch(this.lastSeen, this.lastSeenFacing, null);
                 } else {
-                  this.aiState = "RETURN";
+                  this._resumePatrolRoute();
                 }
+              } else if (directTarget) {
+                this._rebuildPath(directTarget, true);
               }
               this._chaseStuckTimer = 0;
             }
@@ -424,11 +493,7 @@ class Guard {
           if (moved < this.stuckMoveThreshold || !madeProgress) {
             this._actionStuckTimer += dt;
             if (this._actionStuckTimer > this._actionStuckTimeout) {
-              if (this.aiState === "INVESTIGATE") {
-                this.investigatePauseTimer = Math.max(this.investigatePauseTimer, this.investigatePauseDuration);
-              } else if (this.aiState === "SEARCH") {
-                this.searchPauseTimer = Math.max(this.searchPauseTimer, this.searchPauseDuration);
-              }
+              if (directTarget) this._rebuildPath(directTarget, true);
               this._actionStuckTimer = 0;
             }
           } else {
@@ -446,7 +511,7 @@ class Guard {
       if (this.investigatePauseTimer <= 0) {
         this.investigatePauseTimer = 0;
         this.investigateTarget = null;
-        this.aiState = "RETURN";
+        this._resumePatrolRoute();
       }
     }
 
@@ -462,10 +527,12 @@ class Guard {
           if (this.searchIndex >= this.searchPlan.length) {
             this.searchPlan = [];
             this.searchIndex = 0;
-            this.aiState = "RETURN";
+            this._resumePatrolRoute();
+          } else {
+            this._clearPath();
           }
         } else {
-          this.aiState = "RETURN";
+          this._resumePatrolRoute();
         }
       }
     }
@@ -507,6 +574,8 @@ class Guard {
     debugInfo.inFov = false;
     debugInfo.hasLos = false;
     debugInfo.closeDetect = false;
+    debugInfo.pathLength = Array.isArray(this.path) ? this.path.length : 0;
+    debugInfo.pathIndex = this.pathIndex;
 
     if (!playerHiddenNow && visionSample) {
       debugInfo.inRange = visionSample.inRange;
@@ -516,7 +585,6 @@ class Guard {
       debugInfo.sees = visionSample.sees;
     }
 
-    // Contact capture is always active while the player is visible (fair stealth baseline).
     if (!playerHiddenNow && rectsIntersect(this, this.player)) {
       if (this.animations.attack) {
         this.animState = "attack";
@@ -604,6 +672,21 @@ class Guard {
         ctx.stroke();
         ctx.restore();
       }
+
+      if (Array.isArray(this.path) && this.path.length) {
+        ctx.save();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(120, 220, 255, 0.75)";
+        ctx.beginPath();
+        const c = centerOf(this);
+        ctx.moveTo(c.x, c.y);
+        for (let i = this.pathIndex; i < this.path.length; i++) {
+          const node = this.path[i];
+          ctx.lineTo(node.x, node.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 
@@ -638,6 +721,11 @@ class Guard {
     this._actionStuckTimer = 0;
     this._chaseStuckTimer = 0;
 
+    this.path = [];
+    this.pathIndex = 0;
+    this.pathGoalKey = "";
+    this.pathRepathTimer = 0;
+
     this.animState = "idle";
     this.lastAnimState = "idle";
     for (const animation of Object.values(this.animations)) {
@@ -654,18 +742,15 @@ class Guard {
     this.searchIndex = 0;
     this.searchPauseTimer = this.searchPauseDuration;
     this._actionStuckTimer = 0;
+    this._clearPath();
 
     const plan = [];
 
     const base = { x: lastSeen.x, y: lastSeen.y };
     plan.push(base);
 
-    if (hideSpotTarget) {
-      plan.push({ x: hideSpotTarget.x, y: hideSpotTarget.y });
-    } else {
-      const hs = this._nearestHideSpotCenterNear(base, this.hideSpotCheckRadius);
-      if (hs) plan.push(hs);
-    }
+    const hs = this._nearestHideSpotCenterNear(base, this.hideSpotCheckRadius);
+    if (hs) plan.push(hs);
 
     const baseFacing = numberOr(facingAtLoss, this.facing);
     const spread = Math.max(0.3, Math.min(1.2, this.fov * 0.6));
@@ -682,6 +767,46 @@ class Guard {
     this.searchPlan = plan;
     this.searchIndex = 0;
     this.searchPauseTimer = this.searchPauseDuration;
+  }
+
+  _resumePatrolRoute() {
+    if (!this.waypoints.length) {
+      this.aiState = "PATROL";
+      this._clearPath();
+      return;
+    }
+
+    this.wpIndex = this._nearestWaypointIndex();
+    this.aiState = "PATROL";
+    this.mode = "CALM";
+    this.investigateTarget = null;
+    this.investigatePauseTimer = 0;
+    this.searchPlan = [];
+    this.searchIndex = 0;
+    this.searchPauseTimer = 0;
+    this._stuckTimer = 0;
+    this._actionStuckTimer = 0;
+    this._chaseStuckTimer = 0;
+    this._clearPath();
+  }
+
+  _nearestWaypointIndex() {
+    if (!this.waypoints.length) return 0;
+    const c = centerOf(this);
+
+    let bestIndex = 0;
+    let bestDist = Infinity;
+
+    for (let i = 0; i < this.waypoints.length; i++) {
+      const wp = this.waypoints[i];
+      const d = Math.hypot(wp.x - c.x, wp.y - c.y);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIndex = i;
+      }
+    }
+
+    return bestIndex;
   }
 
   _getActiveOrNearestHideSpotCenter(playerCenter, radius) {
@@ -732,6 +857,7 @@ class Guard {
         g.aiState = "INVESTIGATE";
         g.investigateTarget = { x: lastSeen.x, y: lastSeen.y };
         g.investigatePauseTimer = 0;
+        if (typeof g._clearPath === "function") g._clearPath();
       }
     }
   }
@@ -835,6 +961,101 @@ class Guard {
     this.x = startX;
     this.y = startY;
     return 0;
+  }
+
+  _resolveMovementTarget(finalTarget, allowPathing) {
+    if (!finalTarget) return null;
+    if (!allowPathing) return finalTarget;
+
+    const navGrid = this.level?.navGrid;
+    if (!navGrid || typeof findPath !== "function") return finalTarget;
+
+    const c = centerOf(this);
+
+    if (hasLineOfSight(c, finalTarget, this.level.walls)) {
+      this._clearPath();
+      return finalTarget;
+    }
+
+    const goalKey = this._gridKeyForPoint(navGrid, finalTarget.x, finalTarget.y);
+    const needsRepath =
+      !Array.isArray(this.path) ||
+      !this.path.length ||
+      this.pathIndex >= this.path.length ||
+      this.pathRepathTimer <= 0 ||
+      goalKey !== this.pathGoalKey;
+
+    if (needsRepath) {
+      this._rebuildPath(finalTarget, false);
+    }
+
+    if (Array.isArray(this.path) && this.path.length) {
+      const node = this.path[this.pathIndex] || null;
+      return node || finalTarget;
+    }
+
+    return finalTarget;
+  }
+
+  _rebuildPath(finalTarget, force) {
+    const navGrid = this.level?.navGrid;
+    if (!navGrid || typeof findPath !== "function" || !finalTarget) {
+      this._clearPath();
+      return;
+    }
+
+    if (!force && this.pathRepathTimer > 0) return;
+
+    const c = centerOf(this);
+    const nextPath = findPath(navGrid, c.x, c.y, finalTarget.x, finalTarget.y);
+
+    this.pathRepathTimer = this.pathRepathInterval;
+    this.pathGoalKey = this._gridKeyForPoint(navGrid, finalTarget.x, finalTarget.y);
+
+    if (Array.isArray(nextPath) && nextPath.length) {
+      this.path = nextPath;
+      this.pathIndex = 0;
+    } else {
+      this._clearPath();
+    }
+  }
+
+  _advancePathIfReached(currentCenter) {
+    if (!Array.isArray(this.path) || !this.path.length) return;
+
+    while (this.pathIndex < this.path.length) {
+      const node = this.path[this.pathIndex];
+      if (!node) break;
+
+      const d = Math.hypot(node.x - currentCenter.x, node.y - currentCenter.y);
+      if (d > this.pathNodeReachDistance) break;
+
+      this.pathIndex += 1;
+    }
+
+    if (this.pathIndex >= this.path.length) {
+      this._clearPath();
+    }
+  }
+
+  _clearPath() {
+    this.path = [];
+    this.pathIndex = 0;
+    this.pathGoalKey = "";
+    this.pathRepathTimer = 0;
+  }
+
+  _gridKeyForPoint(navGrid, x, y) {
+    if (!navGrid) return "";
+    const cellSize = Number(navGrid.cellSize) || 48;
+    const cols = Number(navGrid.cols) || 0;
+    const rows = Number(navGrid.rows) || 0;
+
+    const gx = Math.floor(x / cellSize);
+    const gy = Math.floor(y / cellSize);
+
+    if (gx < 0 || gy < 0 || gx >= cols || gy >= rows) return "";
+    return `${gx},${gy}`;
   }
 
   _updateAnimationState(isMoving) {

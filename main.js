@@ -48,7 +48,7 @@ const STATE = {
   pickupSpawns: [],
   doorSpawns: [],
   lastCaptureByGuardId: null,
-  debugInfo: { guards: [] },
+  debugInfo: { guards: [], cameras: [] },
   menuOptionRects: [],
   levelOptionRects: [],
   focusOptionRects: [],
@@ -144,7 +144,12 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   const levelEntry = LEVEL_CATALOG[safeLevelIndex];
   const level = cloneLevel(levelEntry.data);
   normalizeLevelComponents(level);
+
+  // Build navigation grid so guards can pathfind around walls.
+  level.navGrid = buildNavigationGrid(level);
+
   const guardConfigs = normalizeLevelGuards(level);
+  const cameraConfigs = normalizeLevelCameras(level);
 
   gameEngine.level = level;
   STATE.levelIndex = safeLevelIndex;
@@ -157,7 +162,7 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
     trigger: door.trigger ? { ...door.trigger } : door.trigger,
   }));
   STATE.lastCaptureByGuardId = null;
-  STATE.debugInfo = { guards: [] };
+  STATE.debugInfo = { guards: [], cameras: [] };
   STATE.menuOptionRects = [];
   STATE.levelOptionRects = [];
   STATE.focusOptionRects = [];
@@ -226,6 +231,10 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
     (guardConfig, index) =>
       new Guard(gameEngine, level, STATE, player, guardConfig, index, guardSprites)
   );
+  const cameras = cameraConfigs.map(
+    (cameraConfig, index) =>
+      new SecurityCamera(gameEngine, level, STATE, player, cameraConfig, index)
+  );
   const levelRenderer = new LevelRenderer(gameEngine, level, STATE, artPackAssets, componentAssets);
   const controller = new GameController(gameEngine, STATE, level, player, {
     scheduleLevelLoad,
@@ -235,6 +244,7 @@ function loadLevelSession(levelIndex, initialStatus = "playing") {
   gameEngine.entities = [
     controller,
     ...guards,
+    ...cameras,
     player,
     // IMPORTANT: This engine draws entities in reverse order (last added drawn first).
     // Keep level renderer last so it draws behind everything else.
@@ -262,6 +272,18 @@ function normalizeLevelGuards(level) {
   level.guards = guards;
   level.guard = guards[0] || null;
   return guards;
+}
+
+function normalizeLevelCameras(level) {
+  if (!level) return [];
+
+  let cameras = [];
+  if (Array.isArray(level.cameras) && level.cameras.length) {
+    cameras = level.cameras;
+  }
+
+  level.cameras = cameras;
+  return cameras;
 }
 
 function cloneLevel(level) {
