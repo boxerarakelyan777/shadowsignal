@@ -1,140 +1,122 @@
-// Mission Level src/levels/firstLevel.js
-const FIRST_LEVEL_DOOR = createLockedDoor({
-  x: 1880,
-  y: 620,
-  w: 36,
-  h: 180,
-  trigger: { x: 1820, y: 600, w: 116, h: 220 },
+// Level 1: built from the prototype layout with polished floor/wall zoning.
+const LEVEL1_LOCKED_DOOR = createLockedDoor({
+  x: 1300,
+  y: 380,
+  w: 30,
+  h: 160,
+  trigger: { x: 1240, y: 380, w: 90, h: 160 },
+  objectiveLabel: "Open training checkpoint",
   motionType: "split",
   slideAxis: "y",
   openDuration: 0.34,
 });
 
-const FIRST_LEVEL_GUARDS = [
-  createGuard({
-    name: "Corridor Guard",
-    x: 980,
-    y: 700,
-    patrolSpeed: 88,
-    visionRange: 285,
-    fovDeg: 76,
-    waypoints: [
-      { x: 900, y: 700 },
-      { x: 1500, y: 700 },
-      { x: 1500, y: 760 },
-      { x: 900, y: 760 },
-    ],
-  }),
-  createGuard({
-    name: "Security Guard",
-    x: 2240,
-    y: 900,
-    patrolSpeed: 92,
-    visionRange: 300,
-    fovDeg: 80,
-    waypoints: [
-      { x: 2140, y: 900 },
-      { x: 2740, y: 900 },
-      { x: 2740, y: 560 },
-      { x: 2140, y: 560 },
-    ],
-  }),
-  createGuard({
-    name: "Terminal Guard",
-    x: 3060,
-    y: 620,
-    patrolSpeed: 84,
-    visionRange: 250,
-    fovDeg: 70,
-    waypoints: [
-      { x: 2980, y: 620 },
-      { x: 3320, y: 620 },
-      { x: 3320, y: 520 },
-      { x: 2980, y: 520 },
-    ],
-  }),
-];
+const LEVEL1_GUARD = createGuard({
+  name: "Training Patrol",
+  x: 1940,
+  y: 440,
+  patrolSpeed: 86,
+  visionRange: 265,
+  fovDeg: 72,
+  waypoints: [
+    { x: 1750, y: 440 },
+    { x: 2600, y: 440 },
+    { x: 2600, y: 560 },
+    { x: 1750, y: 560 },
+  ],
+});
 
 const FIRST_LEVEL = {
-  width: 3400,
-  height: 1400,
+  width: 3000,
+  height: 900,
   floorVariant: "ops",
   wallVariant: "reinforced",
+  useFloorZones: true,
+  enableFloorTransitions: false,
+  enableWallDecals: false,
   floorZones: [
-    { id: "spawn", role: "spawn", variant: "concrete", x: 24, y: 360, w: 760, h: 674, priority: 40 },
-    { id: "corridor", role: "corridor", variant: "ops", flow: "east", x: 24, y: 560, w: 1892, h: 280, priority: 20 },
-    { id: "secure_wing", role: "secure", variant: "secure", x: 1916, y: 420, w: 1460, h: 614, priority: 15 },
-    { id: "terminal_room", role: "terminal", variant: "ops", x: 2860, y: 460, w: 500, h: 300, priority: 60 },
+    { id: "spawn", role: "spawn", variant: "concrete", x: 20, y: 180, w: 620, h: 540, priority: 68 },
+    { id: "corridor", role: "corridor", variant: "ops", flow: "east", x: 620, y: 330, w: 780, h: 260, priority: 52 },
+    { id: "key_room", role: "secure", variant: "secure", x: 1000, y: 120, w: 300, h: 240, priority: 88 },
+    { id: "secure_wing", role: "secure", variant: "secure", x: 1400, y: 240, w: 1580, h: 440, priority: 46 },
+    { id: "terminal_room", role: "terminal", variant: "ops", x: 2240, y: 300, w: 560, h: 260, priority: 94 },
   ],
 
-  playerSpawn: { x: 120, y: 700 },
+  playerSpawn: { x: 120, y: 420 },
 
-  // Objective chain: keycard -> secured door -> terminal -> extraction.
-  keycard: createKeycard({ x: 1320, y: 360 }),
-  lockedDoor: FIRST_LEVEL_DOOR,
-  terminal: createTerminal({ x: 3260, y: 560 }),
-  exitZone: createExitZone({ x: 3210, y: 860, w: 140, h: 120 }),
+  keycard: createKeycard({
+    x: 1100,
+    y: 220,
+    prompt: "E: Pick up Training Keycard",
+    acquiredMessage: "Training keycard acquired.",
+  }),
+  terminal: createTerminal({ x: 2400, y: 360 }),
+  lockedDoor: LEVEL1_LOCKED_DOOR,
+  exitZone: createExitZone({ x: 2850, y: 440, w: 100, h: 80 }),
+
+  objectiveSteps: [
+    { type: "flag", flag: "hasKeycard", label: "Pick up training keycard", icon: "keycard" },
+    { type: "door", doorIndex: 0, label: "Open training checkpoint" },
+    { type: "terminal", label: "Download training data", icon: "objective" },
+    { type: "extract", label: "Reach extraction", icon: "objective" },
+  ],
 
   hideSpots: [
-    createHideSpot({ x: 165, y: 895, w: 64, h: 64 }),
-    createHideSpot({ x: 1175, y: 865, w: 64, h: 64 }),
-    createHideSpot({ x: 2055, y: 895, w: 64, h: 64 }),
-    createHideSpot({ x: 2755, y: 475, w: 64, h: 64 }),
-    createHideSpot({ x: 3115, y: 875, w: 64, h: 64 }),
+    createHideSpot({ x: 210, y: 595, w: 64, h: 64 }),
+    createHideSpot({ x: 810, y: 575, w: 64, h: 64 }),
+    createHideSpot({ x: 1920, y: 595, w: 64, h: 64 }),
+    createHideSpot({ x: 2593, y: 553, w: 64, h: 64 }),
   ],
 
   walls: [
-    ...createOuterWalls(3400, 1400, 24),
+    ...createOuterWalls(3000, 900, 20),
+
+    // Spawn room.
     ...createWalls([
-      // Spawn chamber.
-      { x: 24, y: 360, w: 760, h: 24 },
-      { x: 24, y: 1010, w: 760, h: 24 },
-      { x: 760, y: 360, w: 24, h: 220 },
-      { x: 760, y: 816, w: 24, h: 218 },
-      { x: 260, y: 650, w: 130, h: 110 },
-      { x: 500, y: 470, w: 100, h: 90 },
+      { x: 20, y: 180, w: 600, h: 20 },
+      { x: 20, y: 700, w: 600, h: 20 },
+      { x: 20, y: 180, w: 20, h: 540 },
+      { x: 620, y: 180, w: 20, h: 200 },
+      { x: 620, y: 540, w: 20, h: 160 },
+      { x: 250, y: 500, w: 90, h: 80 },
+    ], { variant: "default" }),
 
-      // Main corridor.
-      { x: 24, y: 560, w: 1248, h: 24 },
-      { x: 1408, y: 560, w: 472, h: 24 },
-      { x: 24, y: 816, w: 1856, h: 24 },
+    // Corridor lane to the checkpoint door.
+    ...createWalls([
+      { x: 640, y: 360, w: 360, h: 20 },
+      { x: 1080, y: 360, w: 220, h: 20 },
+      { x: 640, y: 540, w: 660, h: 20 },
+      { x: 1330, y: 360, w: 70, h: 20 },
+      { x: 1330, y: 540, w: 70, h: 20 },
+      { x: 1300, y: 360, w: 30, h: 20 },
+      { x: 1300, y: 540, w: 30, h: 20 },
+    ], { variant: "bulkhead" }),
 
-      // Keycard room (upper side access).
-      { x: 1080, y: 220, w: 520, h: 24 },
-      { x: 1080, y: 220, w: 24, h: 340 },
-      { x: 1576, y: 220, w: 24, h: 340 },
-      { x: 1080, y: 536, w: 190, h: 24 },
-      { x: 1410, y: 536, w: 190, h: 24 },
-      { x: 1240, y: 300, w: 70, h: 90 },
-      { x: 1380, y: 360, w: 70, h: 90 },
+    // Key room above corridor.
+    ...createWalls([
+      { x: 1000, y: 120, w: 300, h: 20 },
+      { x: 1000, y: 120, w: 20, h: 240 },
+      { x: 1280, y: 120, w: 20, h: 240 },
+      { x: 1180, y: 200, w: 40, h: 40 },
+    ], { variant: "default" }),
 
-      // Door frame caps.
-      { x: 1880, y: 560, w: 36, h: 60 },
-      { x: 1880, y: 800, w: 36, h: 40 },
+    // Secure wing and terminal approach.
+    ...createWalls([
+      { x: 1400, y: 240, w: 1580, h: 20 },
+      { x: 1400, y: 660, w: 1580, h: 20 },
+      { x: 1400, y: 240, w: 20, h: 140 },
+      { x: 1400, y: 520, w: 20, h: 140 },
+      { x: 1820, y: 340, w: 120, h: 20 },
+      { x: 2100, y: 460, w: 120, h: 20 },
+      { x: 2330, y: 340, w: 20, h: 120 },
+      { x: 2480, y: 460, w: 20, h: 120 },
+      { x: 2650, y: 520, w: 80, h: 80 },
+    ], { variant: "reinforced" }),
 
-      // Secure wing shell.
-      { x: 1916, y: 420, w: 1460, h: 24 },
-      { x: 1916, y: 1010, w: 1460, h: 24 },
-      { x: 1916, y: 420, w: 24, h: 200 },
-      { x: 1916, y: 800, w: 24, h: 234 },
-
-      // Secure wing interior cover.
-      { x: 2240, y: 620, w: 220, h: 24 },
-      { x: 2480, y: 780, w: 260, h: 24 },
-      { x: 2660, y: 540, w: 24, h: 220 },
-      { x: 3000, y: 640, w: 24, h: 260 },
-      { x: 2300, y: 900, w: 110, h: 90 },
-
-      // Terminal room with left-side entry.
-      { x: 2860, y: 460, w: 500, h: 24 },
-      { x: 2860, y: 736, w: 500, h: 24 },
-      { x: 2860, y: 460, w: 24, h: 150 },
-      { x: 2860, y: 660, w: 24, h: 100 },
-    ]),
-    // Locked door blocks the center corridor until keycard unlock.
-    FIRST_LEVEL_DOOR,
+    // Locked door in the center corridor.
+    LEVEL1_LOCKED_DOOR,
   ],
 
-  guards: FIRST_LEVEL_GUARDS,
-  guard: FIRST_LEVEL_GUARDS[0],
+  guards: [LEVEL1_GUARD],
+  guard: LEVEL1_GUARD,
 };

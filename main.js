@@ -1,11 +1,9 @@
 const gameEngine = new GameEngine({ debugging: false });
 const ASSET_MANAGER = new AssetManager();
 const LEVEL_CATALOG = [
-  { id: "nova", name: "Operation Nova", data: NOVA_LEVEL },
-  { id: "prototype", name: "Prototype Facility", data: PROTOTYPE_LEVEL },
-  { id: "tutorial", name: "Training Facility", data: FIRST_LEVEL },
+  { id: "level1", name: "Level 1: Training Facility (Tutorial)", data: FIRST_LEVEL },
+  { id: "level2", name: "Level 2: Infiltration Wing", data: LEVEL2 },
   { id: "level3", name: "Level 3: Data Vault Breakout", data: LEVEL_3 },
-  { id: "test", name: "Test Sandbox", data: TEST_LEVEL },
 ];
 const DEFAULT_LEVEL_INDEX = 0;
 const MAX_RENDER_DPR = 1.5;
