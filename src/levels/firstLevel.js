@@ -11,18 +11,36 @@ const LEVEL1_LOCKED_DOOR = createLockedDoor({
   openDuration: 0.34,
 });
 
+const LEVEL1_GUARD_TUNING = {
+  patrolSpeed: 84,
+  visionRange: 255,
+  fovDeg: 72,
+  // Easier detection profile for tutorial.
+  detectionTime: 1.35,
+  detectionDecayTime: 0.55,
+  alertDecayWhileHidden: 0.2,
+  investigatePauseDuration: 1.8,
+  searchPauseDuration: 0.7,
+  searchSweepCount: 2,
+  searchSweepRadius: 72,
+  hideSpotCheckRadius: 90,
+  hideSpotHidePriorityRadius: 78,
+  radioRadius: 250,
+  pathRepathInterval: 0.75,
+};
+
 const LEVEL1_GUARD = createGuard({
+  ...LEVEL1_GUARD_TUNING,
   name: "Training Patrol",
   x: 1940,
   y: 440,
-  patrolSpeed: 86,
-  visionRange: 265,
-  fovDeg: 72,
   waypoints: [
-    { x: 1750, y: 440 },
+    { x: 1700, y: 440 },
     { x: 2600, y: 440 },
     { x: 2600, y: 560 },
-    { x: 1750, y: 560 },
+    { x: 2200, y: 560 },
+    { x: 2200, y: 350 },
+    { x: 1700, y: 350 },
   ],
 });
 

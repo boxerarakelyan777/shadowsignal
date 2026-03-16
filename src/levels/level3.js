@@ -130,12 +130,30 @@ const LEVEL3_RED_PASS = createKeycard({
   acquiredMessage: "RED vault pass acquired.",
 });
 
+const LEVEL3_GUARD_TUNING = {
+  // Hard-tier awareness and pursuit.
+  detectionTime: 0.62,
+  detectionDecayTime: 1.35,
+  alertDecayWhileHidden: 0.95,
+  investigatePauseDuration: 0.85,
+  searchPauseDuration: 0.45,
+  searchSweepCount: 4,
+  searchSweepRadius: 138,
+  hideSpotCheckRadius: 150,
+  hideSpotHidePriorityRadius: 128,
+  radioRadius: 620,
+  pathRepathInterval: 0.3,
+  closeDetectRange: 64,
+  actionStuckTimeout: 0.65,
+};
+
 const LEVEL3_GUARDS = [
   createGuard({
+    ...LEVEL3_GUARD_TUNING,
     name: "Atrium Sweeper",
     ...level3GuardSpawn(32, 19),
     patrolSpeed: 96,
-    chaseSpeed: 145,
+    chaseSpeed: 252,
     visionRange: 300,
     fovDeg: 74,
     waypoints: [
@@ -146,10 +164,11 @@ const LEVEL3_GUARDS = [
     ],
   }),
   createGuard({
+    ...LEVEL3_GUARD_TUNING,
     name: "Security Hall Guard",
     ...level3GuardSpawn(20, 13),
     patrolSpeed: 92,
-    chaseSpeed: 140,
+    chaseSpeed: 248,
     visionRange: 288,
     fovDeg: 72,
     waypoints: [
@@ -166,10 +185,11 @@ const LEVEL3_GUARDS = [
     ],
   }),
   createGuard({
+    ...LEVEL3_GUARD_TUNING,
     name: "DoorA Sentinel",
     ...level3GuardSpawn(32, 13),
     patrolSpeed: 88,
-    chaseSpeed: 136,
+    chaseSpeed: 246,
     visionRange: 280,
     fovDeg: 70,
     waypoints: [
@@ -180,10 +200,11 @@ const LEVEL3_GUARDS = [
     ],
   }),
   createGuard({
+    ...LEVEL3_GUARD_TUNING,
     name: "Operations Roamer",
     ...level3GuardSpawn(48, 9),
     patrolSpeed: 94,
-    chaseSpeed: 142,
+    chaseSpeed: 250,
     visionRange: 286,
     fovDeg: 72,
     waypoints: [
@@ -202,10 +223,11 @@ const LEVEL3_GUARDS = [
     ],
   }),
   createGuard({
+    ...LEVEL3_GUARD_TUNING,
     name: "Vault Patrol",
     ...level3GuardSpawn(56, 15),
     patrolSpeed: 98,
-    chaseSpeed: 148,
+    chaseSpeed: 256,
     visionRange: 300,
     fovDeg: 74,
     waypoints: [
@@ -222,10 +244,11 @@ const LEVEL3_GUARDS = [
     ],
   }),
   createGuard({
+    ...LEVEL3_GUARD_TUNING,
     name: "Exit Roamer",
     ...level3GuardSpawn(56, 30),
     patrolSpeed: 90,
-    chaseSpeed: 138,
+    chaseSpeed: 246,
     visionRange: 280,
     fovDeg: 70,
     waypoints: [
