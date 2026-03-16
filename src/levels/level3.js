@@ -147,6 +147,20 @@ const LEVEL3_GUARD_TUNING = {
   actionStuckTimeout: 0.65,
 };
 
+const LEVEL3_CAMERA_TUNING = {
+  // Hard-tier camera network.
+  visionRange: 352,
+  fovDeg: 64,
+  sweepDeg: 120,
+  panSpeed: 0.78,
+  edgePauseDuration: 0.24,
+  detectionTime: 0.44,
+  detectionDecayTime: 1.05,
+  alertRadius: 700,
+  alertCooldown: 0.82,
+  closeDetectRange: 58,
+};
+
 const LEVEL3_GUARDS = [
   createGuard({
     ...LEVEL3_GUARD_TUNING,
@@ -260,6 +274,55 @@ const LEVEL3_GUARDS = [
       level3Waypoint(53, 31),
     ],
   }),
+];
+
+const LEVEL3_CAMERAS = [
+  {
+    ...LEVEL3_CAMERA_TUNING,
+    name: "Security Office Camera",
+    ...level3GuardSpawn(12, 5),
+    facing: Math.PI / 2,
+    sweepDeg: 100,
+    visionRange: 304,
+    detectionTime: 0.54,
+    alertRadius: 560,
+  },
+  {
+    ...LEVEL3_CAMERA_TUNING,
+    name: "Atrium Overwatch Camera",
+    ...level3GuardSpawn(32, 13),
+    facing: Math.PI / 2,
+    sweepDeg: 132,
+    visionRange: 372,
+  },
+  {
+    ...LEVEL3_CAMERA_TUNING,
+    name: "Operations Hall Camera",
+    ...level3GuardSpawn(45, 11),
+    facing: 0,
+    sweepDeg: 116,
+    visionRange: 344,
+    alertRadius: 660,
+  },
+  {
+    ...LEVEL3_CAMERA_TUNING,
+    name: "Vault Corridor Camera",
+    ...level3GuardSpawn(57, 15),
+    facing: Math.PI,
+    sweepDeg: 108,
+    visionRange: 336,
+    detectionTime: 0.42,
+    alertRadius: 760,
+  },
+  {
+    ...LEVEL3_CAMERA_TUNING,
+    name: "Service Exit Camera",
+    ...level3GuardSpawn(56, 27),
+    facing: Math.PI / 2,
+    sweepDeg: 110,
+    visionRange: 328,
+    alertRadius: 740,
+  },
 ];
 
 function createLevel3() {
@@ -515,6 +578,7 @@ function createLevel3() {
 
     guards: LEVEL3_GUARDS,
     guard: LEVEL3_GUARDS[0],
+    cameras: LEVEL3_CAMERAS,
 
     // Designated rock bait spots:
     // A(40,14) for Guard1, B(30,10) for Guard3, C(52,18) for Guard5.

@@ -13,6 +13,11 @@ class SecurityCamera {
     this.h = numberOr(config.h, 28);
 
     this.name = config.name || `Camera ${cameraId + 1}`;
+    this.visualClock = 0;
+    this.eyeIconSpec = resolveUiIconSpec("eye");
+    this.warningIconSpec = resolveUiIconSpec("warning");
+    this.eyeIconImage = resolveSprite(this.eyeIconSpec?.path);
+    this.warningIconImage = resolveSprite(this.warningIconSpec?.path);
 
     this.baseFacing = numberOr(config.facing, 0);
     this.facing = this.baseFacing;
@@ -29,7 +34,10 @@ class SecurityCamera {
     this.maxAngle = normalizeAngle(this.baseFacing + this.sweep / 2);
 
     this.panSpeed = numberOr(config.panSpeed, 1.15);
-    this.panDir = numberOr(config.startDirection, 1) >= 0 ? 1 : -1;
+    this.startPanDir = numberOr(config.startDirection, 1) >= 0 ? 1 : -1;
+    this.panDir = this.startPanDir;
+    this.edgePauseDuration = Math.max(0, numberOr(config.edgePauseDuration, 0.28));
+    this.edgePauseTimer = 0;
 
     this.closeDetectRange = numberOr(config.closeDetectRange, 46);
 
@@ -51,6 +59,7 @@ class SecurityCamera {
     if (this.disabled) return;
 
     const dt = this.game.clockTick;
+    this.visualClock += dt;
 
     if (this.cooldown > 0) {
       this.cooldown -= dt;
@@ -137,41 +146,26 @@ class SecurityCamera {
 
     const c = centerOf(this);
     this._drawVisionCone(ctx, c);
-
-    let bodyColor = "rgba(90, 180, 255, 1)";
-    if (this.detection >= 1) bodyColor = "rgba(255, 90, 90, 1)";
-    else if (this.detection > 0.01) bodyColor = "rgba(255, 200, 90, 1)";
-
-    ctx.save();
-
-    ctx.fillStyle = "rgba(20, 30, 42, 0.95)";
-    ctx.fillRect(this.x - 2, this.y - 2, this.w + 4, this.h + 4);
-
-    ctx.fillStyle = bodyColor;
-    ctx.fillRect(this.x, this.y, this.w, this.h);
-
-    ctx.strokeStyle = "rgba(235, 245, 255, 0.95)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(c.x, c.y);
-    ctx.lineTo(
-      c.x + Math.cos(this.facing) * Math.max(10, this.w * 0.85),
-      c.y + Math.sin(this.facing) * Math.max(10, this.h * 0.85)
-    );
-    ctx.stroke();
-
-    ctx.restore();
+    this._drawBody(ctx, c);
+    this._drawStatusGlyph(ctx, c);
   }
 
   reset() {
     this.facing = this.baseFacing;
-    this.panDir = 1;
+    this.panDir = this.startPanDir;
+    this.edgePauseTimer = 0;
     this.detection = 0;
     this.cooldown = 0;
     this.disabled = false;
   }
 
   _updatePan(dt) {
+    if (this.edgePauseTimer > 0) {
+      this.edgePauseTimer -= dt;
+      if (this.edgePauseTimer > 0) return;
+      this.edgePauseTimer = 0;
+    }
+
     this.facing += this.panDir * this.panSpeed * dt;
 
     const rel = normalizeAngle(this.facing - this.baseFacing);
@@ -180,12 +174,160 @@ class SecurityCamera {
     if (rel > halfSweep) {
       this.facing = this.baseFacing + halfSweep;
       this.panDir = -1;
+      this.edgePauseTimer = this.edgePauseDuration;
     } else if (rel < -halfSweep) {
       this.facing = this.baseFacing - halfSweep;
       this.panDir = 1;
+      this.edgePauseTimer = this.edgePauseDuration;
     }
 
     this.facing = normalizeAngle(this.facing);
+  }
+
+  _drawBody(ctx, center) {
+    const alertAmount = clamp(this.detection, 0, 1);
+    const pulse = 0.5 + Math.sin(this.visualClock * 8 + this.cameraId * 0.9) * 0.5;
+    const housingW = this.w * 1.16;
+    const housingH = this.h * 0.82;
+    const lensR = Math.max(5.6, this.h * 0.24);
+    const armW = this.w * 0.5;
+    const armH = Math.max(6, this.h * 0.3);
+
+    ctx.save();
+    ctx.translate(center.x, center.y);
+    ctx.rotate(this.facing);
+
+    // Wall mount arm and joint.
+    ctx.fillStyle = "rgba(15, 23, 32, 0.95)";
+    roundedRectPath(ctx, -housingW * 0.92, -armH * 0.5, armW, armH, Math.max(2, armH * 0.24));
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(-housingW * 0.43, 0, Math.max(4, this.h * 0.18), 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(36, 56, 74, 0.95)";
+    ctx.fill();
+
+    // Camera housing.
+    const housingGrad = ctx.createLinearGradient(-housingW * 0.3, -housingH, housingW * 0.9, housingH);
+    housingGrad.addColorStop(0, "rgba(56, 76, 98, 0.96)");
+    housingGrad.addColorStop(0.55, "rgba(31, 47, 66, 0.96)");
+    housingGrad.addColorStop(1, "rgba(18, 28, 42, 0.96)");
+    roundedRectPath(
+      ctx,
+      -housingW * 0.34,
+      -housingH * 0.5,
+      housingW,
+      housingH,
+      Math.max(3, housingH * 0.3)
+    );
+    ctx.fillStyle = housingGrad;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(175, 228, 255, 0.32)";
+    ctx.lineWidth = 1.25;
+    ctx.stroke();
+
+    // Lens assembly.
+    const lensX = housingW * 0.33;
+    ctx.beginPath();
+    ctx.arc(lensX, 0, lensR * 1.28, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(9, 16, 24, 0.96)";
+    ctx.fill();
+
+    const lensGrad = ctx.createRadialGradient(
+      lensX - lensR * 0.45,
+      -lensR * 0.35,
+      lensR * 0.12,
+      lensX,
+      0,
+      lensR * 1.15
+    );
+    if (alertAmount >= 1) {
+      lensGrad.addColorStop(0, "rgba(255, 158, 150, 0.95)");
+      lensGrad.addColorStop(0.35, "rgba(255, 86, 82, 0.92)");
+      lensGrad.addColorStop(1, "rgba(89, 24, 22, 0.95)");
+    } else if (alertAmount > 0.02) {
+      lensGrad.addColorStop(0, "rgba(255, 228, 180, 0.95)");
+      lensGrad.addColorStop(0.36, "rgba(255, 176, 92, 0.9)");
+      lensGrad.addColorStop(1, "rgba(88, 54, 24, 0.95)");
+    } else {
+      lensGrad.addColorStop(0, "rgba(178, 240, 255, 0.95)");
+      lensGrad.addColorStop(0.36, "rgba(96, 184, 255, 0.88)");
+      lensGrad.addColorStop(1, "rgba(24, 52, 88, 0.95)");
+    }
+    ctx.beginPath();
+    ctx.arc(lensX, 0, lensR, 0, Math.PI * 2);
+    ctx.fillStyle = lensGrad;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(210, 240, 255, 0.3)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Lens icon overlay reads more like a "device" than a plain block.
+    const eyeSize = lensR * 1.25;
+    this._drawUiIcon(
+      ctx,
+      this.eyeIconImage,
+      this.eyeIconSpec,
+      lensX - eyeSize * 0.5,
+      -eyeSize * 0.5,
+      eyeSize,
+      eyeSize,
+      0.8 + alertAmount * 0.2
+    );
+
+    // Status light beacon.
+    const beaconX = -housingW * 0.04;
+    const beaconY = -housingH * 0.34;
+    const beaconR = Math.max(2.2, this.h * 0.11 + pulse * 0.7);
+    ctx.beginPath();
+    ctx.arc(beaconX, beaconY, beaconR, 0, Math.PI * 2);
+    if (alertAmount >= 1) ctx.fillStyle = `rgba(255, 104, 96, ${0.9 + pulse * 0.08})`;
+    else if (alertAmount > 0.02) ctx.fillStyle = `rgba(255, 196, 92, ${0.78 + pulse * 0.12})`;
+    else ctx.fillStyle = `rgba(102, 210, 255, ${0.6 + pulse * 0.2})`;
+    ctx.fill();
+
+    // Facing pointer.
+    ctx.strokeStyle = "rgba(232, 246, 255, 0.76)";
+    ctx.lineWidth = 1.35;
+    ctx.beginPath();
+    ctx.moveTo(lensX + lensR * 0.35, 0);
+    ctx.lineTo(lensX + lensR * 1.35, 0);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  _drawStatusGlyph(ctx, center) {
+    if (!this.warningIconImage || !this.warningIconSpec || this.detection <= 0.45) return;
+
+    const pulse = 0.55 + Math.sin(this.visualClock * 7 + this.cameraId * 0.6) * 0.45;
+    const size = Math.max(12, this.w * 0.88);
+    const alpha = Math.min(1, 0.34 + this.detection * 0.56) * (0.72 + pulse * 0.28);
+    this._drawUiIcon(
+      ctx,
+      this.warningIconImage,
+      this.warningIconSpec,
+      center.x - size * 0.5,
+      center.y - this.h * 1.38,
+      size,
+      size,
+      alpha
+    );
+  }
+
+  _drawUiIcon(ctx, image, spec, x, y, w, h, alpha = 1) {
+    if (!image || !spec || alpha <= 0) return;
+
+    const frameW = Math.max(1, numberOr(spec.frameW, 32));
+    const frameH = Math.max(1, numberOr(spec.frameH, frameW));
+    const frames = Math.max(1, numberOr(spec.frames, 1));
+    const fps = Math.max(1, numberOr(spec.fps, 8));
+    const frame = Math.floor(this.visualClock * fps) % frames;
+
+    ctx.save();
+    ctx.globalAlpha = clamp(alpha, 0, 1);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image, frame * frameW, 0, frameW, frameH, x, y, w, h);
+    ctx.restore();
   }
 
   _alertGuards(target) {
@@ -395,4 +537,29 @@ class SecurityCamera {
 function numberOr(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function resolveUiIconSpec(iconId) {
+  if (typeof getArtPackUiIconSpec !== "function") return null;
+  return getArtPackUiIconSpec(iconId) || null;
+}
+
+function resolveSprite(path) {
+  if (!path || typeof ASSET_MANAGER === "undefined") return null;
+  return ASSET_MANAGER.getAsset(path) || null;
+}
+
+function roundedRectPath(ctx, x, y, w, h, radius) {
+  const r = Math.max(0, Math.min(radius, Math.abs(w) * 0.5, Math.abs(h) * 0.5));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }

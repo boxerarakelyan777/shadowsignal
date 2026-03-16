@@ -30,6 +30,20 @@ const LEVEL2_GUARD_TUNING = {
   pathRepathInterval: 0.45,
 };
 
+const LEVEL2_CAMERA_TUNING = {
+  // Mid-tier camera pressure.
+  visionRange: 318,
+  fovDeg: 60,
+  sweepDeg: 104,
+  panSpeed: 0.62,
+  edgePauseDuration: 0.34,
+  detectionTime: 0.72,
+  detectionDecayTime: 0.9,
+  alertRadius: 500,
+  alertCooldown: 1.05,
+  closeDetectRange: 52,
+};
+
 const LEVEL2_GUARDS = [
   createGuard({
     ...LEVEL2_GUARD_TUNING,
@@ -78,6 +92,39 @@ const LEVEL2_GUARDS = [
       { x: 3180, y: 700 },
     ],
   }),
+];
+
+const LEVEL2_CAMERAS = [
+  {
+    ...LEVEL2_CAMERA_TUNING,
+    name: "Keycard Room Camera",
+    x: 1288,
+    y: 248,
+    facing: Math.PI / 2,
+    sweepDeg: 96,
+    visionRange: 292,
+    alertRadius: 440,
+  },
+  {
+    ...LEVEL2_CAMERA_TUNING,
+    name: "Checkpoint Camera",
+    x: 1740,
+    y: 590,
+    facing: Math.PI,
+    sweepDeg: 110,
+    visionRange: 332,
+  },
+  {
+    ...LEVEL2_CAMERA_TUNING,
+    name: "Extraction Camera",
+    x: 2890,
+    y: 488,
+    facing: 0.2,
+    sweepDeg: 118,
+    visionRange: 340,
+    detectionTime: 0.66,
+    alertRadius: 560,
+  },
 ];
 
 const LEVEL2 = {
@@ -190,4 +237,5 @@ const LEVEL2 = {
 
   guards: LEVEL2_GUARDS,
   guard: LEVEL2_GUARDS[0],
+  cameras: LEVEL2_CAMERAS,
 };
